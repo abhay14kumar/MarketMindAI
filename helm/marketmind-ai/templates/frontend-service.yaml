@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "marketmind-ai.componentName" (dict "root" . "component" "frontend") }}
+  labels:
+    {{- include "marketmind-ai.labels" . | nindent 4 }}
+    {{- include "marketmind-ai.selectorLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  type: {{ .Values.frontend.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.frontend.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "marketmind-ai.selectorLabels" (dict "root" . "component" "frontend") | nindent 4 }}

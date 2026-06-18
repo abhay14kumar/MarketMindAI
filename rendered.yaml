@@ -1,0 +1,556 @@
+---
+# Source: marketmind-ai/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: marketmind-ai-secrets
+  labels:
+    helm.sh/chart: marketmind-ai-0.1.0
+    app.kubernetes.io/part-of: marketmind-ai
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+stringData:
+  # Empty by default. Supply these at install time or use an existing Secret.
+  postgres-username: ""
+  postgres-password: ""
+
+---
+# Source: marketmind-ai/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: marketmind-ai-config
+  labels:
+    helm.sh/chart: marketmind-ai-0.1.0
+    app.kubernetes.io/part-of: marketmind-ai
+    app.kubernetes.io/managed-by: Helm
+data:
+  BACKEND_SERVICE_URL: "http://marketmind-ai-backend:8080"
+  AI_SERVICE_URL: "http://marketmind-ai-ai-service:8000"
+  DB_URL: "jdbc:postgresql://marketmind-ai-postgres:5432/marketmind"
+  QDRANT_URL: "http://marketmind-ai-qdrant:6333"
+  OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+  OLLAMA_CHAT_MODEL: "llama3.1"
+  OLLAMA_EMBEDDING_MODEL: "nomic-embed-text"
+  SERVER_PORT: "8080"
+  CORS_ALLOWED_ORIGINS: "http://localhost:5173"
+  DB_MAX_POOL_SIZE: "10"
+  DB_MIN_IDLE: "2"
+  DB_CONNECTION_TIMEOUT_MS: "30000"
+  SPRING_PROFILES_ACTIVE: ""
+  VITE_API_BASE_URL: "/api/v1"
+  LOG_LEVEL: "INFO"
+
+---
+# Source: marketmind-ai/templates/ai-service-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketmind-ai-ai-service
+  labels:
+    helm.sh/chart: marketmind-ai-0.1.0
+    app.kubernetes.io/part-of: marketmind-ai
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: ai-service
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: ai-service
+
+---
+# Source: marketmind-ai/templates/backend-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketmind-ai-backend
+  labels:
+    helm.sh/chart: marketmind-ai-0.1.0
+    app.kubernetes.io/part-of: marketmind-ai
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: backend
+
+---
+# Source: marketmind-ai/templates/frontend-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketmind-ai-frontend
+  labels:
+    helm.sh/chart: marketmind-ai-0.1.0
+    app.kubernetes.io/part-of: marketmind-ai
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: frontend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: frontend
+
+---
+# Source: marketmind-ai/templates/postgres-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketmind-ai-postgres
+  labels:
+    helm.sh/chart: marketmind-ai-0.1.0
+    app.kubernetes.io/part-of: marketmind-ai
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: postgres
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: postgres
+
+---
+# Source: marketmind-ai/templates/qdrant-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketmind-ai-qdrant
+  labels:
+    helm.sh/chart: marketmind-ai-0.1.0
+    app.kubernetes.io/part-of: marketmind-ai
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: qdrant
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http
+      port: 6333
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 6334
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: qdrant
+
+---
+# Source: marketmind-ai/templates/ai-service-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marketmind-ai-ai-service
+  labels:
+    helm.sh/chart: marketmind-ai-0.1.0
+    app.kubernetes.io/part-of: marketmind-ai
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: ai-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: marketmind-ai
+      app.kubernetes.io/instance: marketmind-ai
+      app.kubernetes.io/component: ai-service
+  template:
+    metadata:
+      annotations:
+        checksum/config: d348e5b7dd96ff8a495a235cdb0c2dd54a86ba79e862dfc74f394284c4e3d1e7
+      labels:
+        app.kubernetes.io/name: marketmind-ai
+        app.kubernetes.io/instance: marketmind-ai
+        app.kubernetes.io/component: ai-service
+    spec:
+      
+      containers:
+        - name: ai-service
+          image: "marketmind/ai-service:local"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: marketmind-ai-config
+          livenessProbe:
+            httpGet:
+              path: /internal/v1/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /internal/v1/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+
+---
+# Source: marketmind-ai/templates/backend-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marketmind-ai-backend
+  labels:
+    helm.sh/chart: marketmind-ai-0.1.0
+    app.kubernetes.io/part-of: marketmind-ai
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: marketmind-ai
+      app.kubernetes.io/instance: marketmind-ai
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      annotations:
+        checksum/config: d348e5b7dd96ff8a495a235cdb0c2dd54a86ba79e862dfc74f394284c4e3d1e7
+        checksum/secret: 6e2375b7876fbd8770ab3f91984a7bf7dfa5526ac18941396bab51fc7a06186f
+      labels:
+        app.kubernetes.io/name: marketmind-ai
+        app.kubernetes.io/instance: marketmind-ai
+        app.kubernetes.io/component: backend
+    spec:
+      
+      containers:
+        - name: backend
+          image: "marketmind/backend:local"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: marketmind-ai-config
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: marketmind-ai-secrets
+                  key: postgres-username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: marketmind-ai-secrets
+                  key: postgres-password
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            limits:
+              cpu: 500m
+              memory: 768Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+
+---
+# Source: marketmind-ai/templates/frontend-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marketmind-ai-frontend
+  labels:
+    helm.sh/chart: marketmind-ai-0.1.0
+    app.kubernetes.io/part-of: marketmind-ai
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: marketmind-ai
+      app.kubernetes.io/instance: marketmind-ai
+      app.kubernetes.io/component: frontend
+  template:
+    metadata:
+      annotations:
+        checksum/config: d348e5b7dd96ff8a495a235cdb0c2dd54a86ba79e862dfc74f394284c4e3d1e7
+      labels:
+        app.kubernetes.io/name: marketmind-ai
+        app.kubernetes.io/instance: marketmind-ai
+        app.kubernetes.io/component: frontend
+    spec:
+      
+      containers:
+        - name: frontend
+          image: "marketmind/frontend:local"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: marketmind-ai-config
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            limits:
+              cpu: 250m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+
+---
+# Source: marketmind-ai/templates/postgres-statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: marketmind-ai-postgres
+  labels:
+    helm.sh/chart: marketmind-ai-0.1.0
+    app.kubernetes.io/part-of: marketmind-ai
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: postgres
+spec:
+  serviceName: marketmind-ai-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: marketmind-ai
+      app.kubernetes.io/instance: marketmind-ai
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: marketmind-ai
+        app.kubernetes.io/instance: marketmind-ai
+        app.kubernetes.io/component: postgres
+    spec:
+      
+      containers:
+        - name: postgres
+          image: "postgres:17-alpine"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_DB
+              value: "marketmind"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: marketmind-ai-secrets
+                  key: postgres-username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: marketmind-ai-secrets
+                  key: postgres-password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            limits:
+              cpu: 500m
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          helm.sh/chart: marketmind-ai-0.1.0
+          app.kubernetes.io/part-of: marketmind-ai
+          app.kubernetes.io/managed-by: Helm
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+
+---
+# Source: marketmind-ai/templates/qdrant-statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: marketmind-ai-qdrant
+  labels:
+    helm.sh/chart: marketmind-ai-0.1.0
+    app.kubernetes.io/part-of: marketmind-ai
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: marketmind-ai
+    app.kubernetes.io/instance: marketmind-ai
+    app.kubernetes.io/component: qdrant
+spec:
+  serviceName: marketmind-ai-qdrant
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: marketmind-ai
+      app.kubernetes.io/instance: marketmind-ai
+      app.kubernetes.io/component: qdrant
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: marketmind-ai
+        app.kubernetes.io/instance: marketmind-ai
+        app.kubernetes.io/component: qdrant
+    spec:
+      
+      containers:
+        - name: qdrant
+          image: "qdrant/qdrant:v1.14.1"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 6333
+              protocol: TCP
+            - name: grpc
+              containerPort: 6334
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            limits:
+              cpu: 750m
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /qdrant/storage
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          helm.sh/chart: marketmind-ai-0.1.0
+          app.kubernetes.io/part-of: marketmind-ai
+          app.kubernetes.io/managed-by: Helm
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi

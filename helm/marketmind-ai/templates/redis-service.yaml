@@ -1,0 +1,18 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "marketmind-ai.componentName" (dict "root" . "component" "redis") }}
+  labels:
+    {{- include "marketmind-ai.labels" . | nindent 4 }}
+    {{- include "marketmind-ai.selectorLabels" (dict "root" . "component" "redis") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: {{ .Values.redis.service.port }}
+      targetPort: redis
+      protocol: TCP
+  selector:
+    {{- include "marketmind-ai.selectorLabels" (dict "root" . "component" "redis") | nindent 4 }}
+{{- end }}

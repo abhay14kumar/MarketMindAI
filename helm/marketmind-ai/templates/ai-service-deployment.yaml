@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "marketmind-ai.componentName" (dict "root" . "component" "ai-service") }}
+  labels:
+    {{- include "marketmind-ai.labels" . | nindent 4 }}
+    {{- include "marketmind-ai.selectorLabels" (dict "root" . "component" "ai-service") | nindent 4 }}
+spec:
+  replicas: {{ .Values.aiService.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "marketmind-ai.selectorLabels" (dict "root" . "component" "ai-service") | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "marketmind-ai.selectorLabels" (dict "root" . "component" "ai-service") | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "marketmind-ai.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: ai-service
+          image: "{{ .Values.aiService.image.repository }}:{{ .Values.aiService.image.tag }}"
+          imagePullPolicy: {{ .Values.aiService.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.aiService.containerPort }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "marketmind-ai.fullname" . }}-config
+          {{- if .Values.redis.enabled }}
+          env:
+            - name: REDIS_URL
+              value: {{ printf "redis://%s:%v/0" (include "marketmind-ai.componentName" (dict "root" . "component" "redis")) .Values.redis.service.port | quote }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.aiService.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.aiService.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.aiService.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.aiService.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.aiService.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.aiService.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.aiService.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.aiService.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.aiService.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.aiService.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.aiService.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

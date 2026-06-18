@@ -1,0 +1,14 @@
+apiVersion: v2
+name: marketmind-ai
+description: Local-development Kubernetes foundation for MarketMind AI
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.28.0-0"
+keywords:
+  - marketmind
+  - investment-research
+  - rag
+  - local-development
+maintainers:
+  - name: MarketMind AI Engineering

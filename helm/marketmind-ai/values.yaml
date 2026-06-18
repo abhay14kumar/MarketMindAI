@@ -1,0 +1,216 @@
+# This chart defaults to images built locally. For a shared cluster, replace each
+# repository/tag with an image pushed to your registry, for example:
+#   backend.image.repository=ghcr.io/your-org/marketmind-backend
+#   backend.image.tag=0.1.0
+# Configure imagePullSecrets when the registry is private.
+
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+backend:
+  replicaCount: 1
+  image:
+    repository: marketmind/backend
+    tag: local
+    pullPolicy: IfNotPresent
+  containerPort: 8080
+  service:
+    type: ClusterIP
+    port: 8080
+  env:
+    serverPort: "8080"
+    corsAllowedOrigins: "http://localhost:5173"
+    dbMaxPoolSize: "10"
+    dbMinIdle: "2"
+    dbConnectionTimeoutMs: "30000"
+  probes:
+    liveness:
+      path: /actuator/health/liveness
+      initialDelaySeconds: 30
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /actuator/health/readiness
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: marketmind/frontend
+    tag: local
+    pullPolicy: IfNotPresent
+  containerPort: 80
+  service:
+    type: ClusterIP
+    port: 80
+  env:
+    apiBaseUrl: "/api/v1"
+  probes:
+    liveness:
+      path: /
+      initialDelaySeconds: 15
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+aiService:
+  replicaCount: 1
+  image:
+    repository: marketmind/ai-service
+    tag: local
+    pullPolicy: IfNotPresent
+  containerPort: 8000
+  service:
+    type: ClusterIP
+    port: 8000
+  env:
+    logLevel: "INFO"
+    ollamaBaseUrl: "http://host.docker.internal:11434"
+    chatModel: "llama3.1"
+    embeddingModel: "nomic-embed-text"
+  probes:
+    liveness:
+      path: /internal/v1/health
+      initialDelaySeconds: 30
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /internal/v1/health
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+postgres:
+  # Keep at 1 unless PostgreSQL replication is designed separately.
+  replicaCount: 1
+  image:
+    repository: postgres
+    tag: "17-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    port: 5432
+  database: marketmind
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+qdrant:
+  # Keep at 1 unless Qdrant clustering is configured separately.
+  replicaCount: 1
+  image:
+    repository: qdrant/qdrant
+    tag: "v1.14.1"
+    pullPolicy: IfNotPresent
+  service:
+    httpPort: 6333
+    grpcPort: 6334
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 750m
+      memory: 1Gi
+
+redis:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: redis
+    tag: "7.4-alpine"
+    pullPolicy: IfNotPresent
+  containerPort: 6379
+  service:
+    port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+config:
+  springProfilesActive: ""
+  additionalBackendEnv: {}
+  additionalAiServiceEnv: {}
+  additionalFrontendEnv: {}
+
+secrets:
+  # For non-local environments, prefer create=false and existingSecret=name.
+  # Never commit real values to values.yaml or a values override file.
+  create: true
+  existingSecret: ""
+  postgresUsername: ""
+  postgresPassword: ""
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: marketmind.local
+  frontend:
+    path: /
+    pathType: Prefix
+  backend:
+    path: /api
+    pathType: Prefix
+  tls: []
+
+podAnnotations: {}
+podLabels: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

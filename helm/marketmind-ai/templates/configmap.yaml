@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "marketmind-ai.fullname" . }}-config
+  labels:
+    {{- include "marketmind-ai.labels" . | nindent 4 }}
+data:
+  BACKEND_SERVICE_URL: {{ printf "http://%s:%v" (include "marketmind-ai.componentName" (dict "root" . "component" "backend")) .Values.backend.service.port | quote }}
+  AI_SERVICE_URL: {{ printf "http://%s:%v" (include "marketmind-ai.componentName" (dict "root" . "component" "ai-service")) .Values.aiService.service.port | quote }}
+  DB_URL: {{ printf "jdbc:postgresql://%s:%v/%s" (include "marketmind-ai.componentName" (dict "root" . "component" "postgres")) .Values.postgres.service.port .Values.postgres.database | quote }}
+  QDRANT_URL: {{ printf "http://%s:%v" (include "marketmind-ai.componentName" (dict "root" . "component" "qdrant")) .Values.qdrant.service.httpPort | quote }}
+  OLLAMA_BASE_URL: {{ .Values.aiService.env.ollamaBaseUrl | quote }}
+  OLLAMA_CHAT_MODEL: {{ .Values.aiService.env.chatModel | quote }}
+  OLLAMA_EMBEDDING_MODEL: {{ .Values.aiService.env.embeddingModel | quote }}
+  SERVER_PORT: {{ .Values.backend.env.serverPort | quote }}
+  CORS_ALLOWED_ORIGINS: {{ .Values.backend.env.corsAllowedOrigins | quote }}
+  DB_MAX_POOL_SIZE: {{ .Values.backend.env.dbMaxPoolSize | quote }}
+  DB_MIN_IDLE: {{ .Values.backend.env.dbMinIdle | quote }}
+  DB_CONNECTION_TIMEOUT_MS: {{ .Values.backend.env.dbConnectionTimeoutMs | quote }}
+  SPRING_PROFILES_ACTIVE: {{ .Values.config.springProfilesActive | quote }}
+  VITE_API_BASE_URL: {{ .Values.frontend.env.apiBaseUrl | quote }}
+  LOG_LEVEL: {{ .Values.aiService.env.logLevel | quote }}
+  {{- range $key, $value := .Values.config.additionalBackendEnv }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- range $key, $value := .Values.config.additionalAiServiceEnv }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- range $key, $value := .Values.config.additionalFrontendEnv }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
