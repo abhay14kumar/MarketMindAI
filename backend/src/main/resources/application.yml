@@ -2,9 +2,11 @@ spring:
   application:
     name: marketmind-backend
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    # Development-only fallbacks match docker/.env.example. Shared and
+    # production environments must override them through managed configuration.
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/marketmind}
+    username: ${DB_USERNAME:marketmind_user}
+    password: ${DB_PASSWORD:marketmind_pass}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: ${DB_MAX_POOL_SIZE:10}

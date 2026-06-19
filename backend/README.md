@@ -41,13 +41,19 @@ mvn -version
 
 ## Database Setup
 
-Create an empty PostgreSQL database and a least-privilege application user. Supply credentials through environment variables; never commit them.
+The default backend configuration matches the local PostgreSQL service defined by `docker/.env.example`:
 
-Required variables:
+```text
+URL:      jdbc:postgresql://127.0.0.1:5432/marketmind
+Username: marketmind_user
+Password: marketmind_pass
+```
+
+These predictable values are development-only. Shared and production environments must override them through environment variables or an approved secrets manager:
 
 ```bash
-export DB_URL='jdbc:postgresql://localhost:5432/marketmind'
-export DB_USERNAME='your_local_database_user'
+export DB_URL='jdbc:postgresql://database-host:5432/marketmind'
+export DB_USERNAME='runtime_database_user'
 read -s DB_PASSWORD
 export DB_PASSWORD
 ```
@@ -66,13 +72,25 @@ export DB_CONNECTION_TIMEOUT_MS='30000'
 
 ## Run Locally
 
-From `backend/`:
+First start the local infrastructure. From `backend/`:
+
+```bash
+docker compose --env-file ../docker/.env up -d
+```
+
+Then start Spring Boot:
 
 ```bash
 mvn spring-boot:run
 ```
 
 Flyway applies migrations from `src/main/resources/db/migration` during startup. Hibernate validates the migrated schema and does not create or update tables.
+
+Verify database-backed application health:
+
+```bash
+curl http://localhost:8080/actuator/health
+```
 
 ## Build and Test
 
