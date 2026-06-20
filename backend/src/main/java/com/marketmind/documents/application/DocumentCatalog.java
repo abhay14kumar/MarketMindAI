@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.marketmind.documents.domain.Document;
+import com.marketmind.documents.domain.DocumentSource;
 import com.marketmind.documents.domain.DownloadJob;
 
 public interface DocumentCatalog {
@@ -15,5 +16,13 @@ public interface DocumentCatalog {
 
     List<DownloadJob> findAllJobs();
 
+    Optional<DownloadJob> findJobById(UUID id);
+
     DownloadJob saveJob(DownloadJob job);
+
+    List<DocumentSource> findAllSources();
+
+    boolean existsSourceByCode(String code);
+
+    DocumentSource saveSource(DocumentSource source);
 }

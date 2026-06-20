@@ -1,18 +1,23 @@
 package com.marketmind.documents.api;
 
-import java.util.List;
 import java.util.UUID;
 
 import com.marketmind.documents.application.DocumentService;
+import com.marketmind.documents.dto.DocumentResponse;
+import com.marketmind.documents.dto.DownloadDocumentRequest;
+import com.marketmind.documents.dto.DownloadJobResponse;
+import com.marketmind.documents.dto.PageResponse;
+import com.marketmind.documents.mapper.DocumentMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -22,6 +27,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -30,9 +36,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class DocumentController {
 
     private final DocumentService documentService;
-    private final DocumentApiMapper mapper;
+    private final DocumentMapper mapper;
 
-    public DocumentController(DocumentService documentService, DocumentApiMapper mapper) {
+    public DocumentController(DocumentService documentService, DocumentMapper mapper) {
         this.documentService = documentService;
         this.mapper = mapper;
     }
@@ -44,10 +50,11 @@ public class DocumentController {
     @ApiResponse(
             responseCode = "200",
             description = "Documents returned",
-            content = @Content(array = @ArraySchema(schema = @Schema(
-                    implementation = DocumentResponse.class))))
-    public List<DocumentResponse> getDocuments() {
-        return documentService.getDocuments().stream().map(mapper::toResponse).toList();
+            content = @Content(schema = @Schema(implementation = PageResponse.class)))
+    public PageResponse<DocumentResponse> getDocuments(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+        return mapper.toDocumentPage(documentService.getDocuments(page, size));
     }
 
     @PostMapping("/download")
@@ -94,9 +101,33 @@ public class DocumentController {
     @ApiResponse(
             responseCode = "200",
             description = "Download jobs returned",
-            content = @Content(array = @ArraySchema(schema = @Schema(
-                    implementation = DownloadJobResponse.class))))
-    public List<DownloadJobResponse> getJobs() {
-        return documentService.getDownloadJobs().stream().map(mapper::toResponse).toList();
+            content = @Content(schema = @Schema(implementation = PageResponse.class)))
+    public PageResponse<DownloadJobResponse> getJobs(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+        return mapper.toJobPage(documentService.getDownloadJobs(page, size));
+    }
+
+    @PostMapping("/retry/{jobId}")
+    @Operation(
+            summary = "Retry failed download",
+            description = "Creates a new queued mock job from a failed job. No network call is made.")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "202",
+                description = "Retry job accepted",
+                content = @Content(schema = @Schema(implementation = DownloadJobResponse.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Download job not found",
+                content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(
+                responseCode = "409",
+                description = "Download job is not failed",
+                content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    public ResponseEntity<DownloadJobResponse> retryDownload(@PathVariable UUID jobId) {
+        return ResponseEntity.accepted()
+                .body(mapper.toResponse(documentService.retryDownload(jobId)));
     }
 }

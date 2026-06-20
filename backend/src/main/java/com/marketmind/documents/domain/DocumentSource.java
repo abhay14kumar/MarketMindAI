@@ -8,7 +8,7 @@ public record DocumentSource(
         UUID id,
         String code,
         String name,
-        String sourceType,
+        SourceType sourceType,
         URI baseUrl,
         boolean enabled,
         Instant lastCheckedAt,

@@ -11,7 +11,6 @@ public record DocumentVersion(
         String storageReference,
         String mimeType,
         long sizeBytes,
-        ParseStatus parseStatus,
         Instant acquiredAt,
         Instant createdAt) {
 }

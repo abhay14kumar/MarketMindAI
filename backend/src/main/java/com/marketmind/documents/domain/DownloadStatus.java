@@ -1,6 +1,6 @@
 package com.marketmind.documents.domain;
 
-public enum DownloadJobStatus {
+public enum DownloadStatus {
     QUEUED,
     IN_PROGRESS,
     COMPLETED,

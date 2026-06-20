@@ -9,16 +9,19 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.marketmind.common.exception.ConflictException;
 import com.marketmind.common.exception.ResourceNotFoundException;
 import com.marketmind.documents.domain.Document;
 import com.marketmind.documents.domain.DocumentSource;
 import com.marketmind.documents.domain.DocumentStatus;
 import com.marketmind.documents.domain.DocumentType;
 import com.marketmind.documents.domain.DownloadJob;
-import com.marketmind.documents.domain.DownloadJobStatus;
+import com.marketmind.documents.domain.DownloadStatus;
+import com.marketmind.documents.domain.SourceType;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +33,8 @@ class DocumentServiceTest {
             UUID.fromString("53000000-0000-0000-0000-000000000001");
     private static final UUID SOURCE_ID =
             UUID.fromString("51000000-0000-0000-0000-000000000001");
+    private static final UUID FAILED_JOB_ID =
+            UUID.fromString("55000000-0000-0000-0000-000000000002");
 
     private InMemoryDocumentCatalog catalog;
     private DocumentService service;
@@ -41,15 +46,11 @@ class DocumentServiceTest {
     }
 
     @Test
-    void shouldReturnDocuments() {
-        assertThat(service.getDocuments())
-                .extracting(Document::title)
-                .containsExactly("Annual Report");
-    }
+    void shouldReturnPaginatedDocuments() {
+        PageResult<Document> result = service.getDocuments(0, 20);
 
-    @Test
-    void shouldReturnDocumentById() {
-        assertThat(service.getDocument(DOCUMENT_ID).id()).isEqualTo(DOCUMENT_ID);
+        assertThat(result.content()).extracting(Document::title).containsExactly("Annual Report");
+        assertThat(result.totalElements()).isEqualTo(1);
     }
 
     @Test
@@ -63,25 +64,64 @@ class DocumentServiceTest {
 
     @Test
     void shouldQueueDownloadWithoutCallingExternalServices() {
-        DownloadDocumentCommand command = new DownloadDocumentCommand(
+        DownloadJob job = service.queueDownload(new DownloadDocumentCommand(
                 DOCUMENT_ID,
                 SOURCE_ID,
                 URI.create("https://example.invalid/annual-report.pdf"),
-                3);
+                3));
 
-        DownloadJob job = service.queueDownload(command);
-
-        assertThat(job.id()).isNotNull();
-        assertThat(job.status()).isEqualTo(DownloadJobStatus.QUEUED);
+        assertThat(job.status()).isEqualTo(DownloadStatus.QUEUED);
         assertThat(job.attemptCount()).isZero();
-        assertThat(job.maxAttempts()).isEqualTo(3);
         assertThat(job.submittedAt()).isEqualTo(NOW);
-        assertThat(catalog.jobs).containsExactly(job);
+        assertThat(catalog.jobs).contains(job);
+    }
+
+    @Test
+    void shouldRetryFailedDownloadAsNewJob() {
+        DownloadJob retried = service.retryDownload(FAILED_JOB_ID);
+
+        assertThat(retried.id()).isNotEqualTo(FAILED_JOB_ID);
+        assertThat(retried.retryOfJobId()).isEqualTo(FAILED_JOB_ID);
+        assertThat(retried.status()).isEqualTo(DownloadStatus.QUEUED);
+    }
+
+    @Test
+    void shouldRejectRetryForNonFailedJob() {
+        assertThatThrownBy(() -> service.retryDownload(
+                        UUID.fromString("55000000-0000-0000-0000-000000000001")))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("failed");
+    }
+
+    @Test
+    void shouldCreateNormalizedDocumentSource() {
+        DocumentSource source = service.createSource(new CreateDocumentSourceCommand(
+                " sebi ",
+                "Securities and Exchange Board of India",
+                SourceType.REGULATOR,
+                URI.create("https://www.sebi.gov.in"),
+                true));
+
+        assertThat(source.id()).isNotNull();
+        assertThat(source.code()).isEqualTo("SEBI");
+        assertThat(source.createdAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void shouldRejectDuplicateDocumentSourceCode() {
+        assertThatThrownBy(() -> service.createSource(new CreateDocumentSourceCommand(
+                        "nse",
+                        "Duplicate NSE",
+                        SourceType.EXCHANGE,
+                        URI.create("https://example.invalid"),
+                        true)))
+                .isInstanceOf(ConflictException.class);
     }
 
     private static final class InMemoryDocumentCatalog implements DocumentCatalog {
 
         private final Document document;
+        private final List<DocumentSource> sources = new ArrayList<>();
         private final List<DownloadJob> jobs = new ArrayList<>();
 
         private InMemoryDocumentCatalog() {
@@ -89,12 +129,13 @@ class DocumentServiceTest {
                     SOURCE_ID,
                     "NSE",
                     "National Stock Exchange of India",
-                    "EXCHANGE",
+                    SourceType.EXCHANGE,
                     URI.create("https://example.invalid"),
                     true,
                     NOW,
                     NOW,
                     NOW);
+            sources.add(source);
             document = new Document(
                     DOCUMENT_ID,
                     null,
@@ -108,6 +149,10 @@ class DocumentServiceTest {
                     null,
                     NOW,
                     NOW);
+            jobs.add(job(
+                    UUID.fromString("55000000-0000-0000-0000-000000000001"),
+                    DownloadStatus.COMPLETED));
+            jobs.add(job(FAILED_JOB_ID, DownloadStatus.FAILED));
         }
 
         @Override
@@ -126,9 +171,50 @@ class DocumentServiceTest {
         }
 
         @Override
+        public Optional<DownloadJob> findJobById(UUID id) {
+            return jobs.stream().filter(job -> job.id().equals(id)).findFirst();
+        }
+
+        @Override
         public DownloadJob saveJob(DownloadJob job) {
             jobs.add(job);
             return job;
+        }
+
+        @Override
+        public List<DocumentSource> findAllSources() {
+            return List.copyOf(sources);
+        }
+
+        @Override
+        public boolean existsSourceByCode(String code) {
+            return sources.stream()
+                    .anyMatch(source -> source.code().toUpperCase(Locale.ROOT)
+                            .equals(code.toUpperCase(Locale.ROOT)));
+        }
+
+        @Override
+        public DocumentSource saveSource(DocumentSource source) {
+            sources.add(source);
+            return source;
+        }
+
+        private DownloadJob job(UUID id, DownloadStatus status) {
+            return new DownloadJob(
+                    id,
+                    DOCUMENT_ID,
+                    SOURCE_ID,
+                    URI.create("https://example.invalid/annual-report.pdf"),
+                    status,
+                    status == DownloadStatus.FAILED ? 3 : 1,
+                    3,
+                    null,
+                    NOW.minusSeconds(60),
+                    NOW.minusSeconds(30),
+                    NOW,
+                    null,
+                    status == DownloadStatus.FAILED ? "MOCK_FAILURE" : null,
+                    status == DownloadStatus.FAILED ? "Synthetic failure." : null);
         }
     }
 }

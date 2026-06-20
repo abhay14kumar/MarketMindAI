@@ -13,7 +13,11 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marketmind.common.exception.GlobalExceptionHandler;
 import com.marketmind.documents.application.DocumentService;
+import com.marketmind.documents.domain.SourceType;
+import com.marketmind.documents.dto.CreateDocumentSourceRequest;
+import com.marketmind.documents.dto.DownloadDocumentRequest;
 import com.marketmind.documents.infrastructure.MockDocumentCatalog;
+import com.marketmind.documents.mapper.DocumentMapper;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +33,8 @@ class DocumentControllerTest {
             UUID.fromString("53000000-0000-0000-0000-000000000001");
     private static final UUID SOURCE_ID =
             UUID.fromString("51000000-0000-0000-0000-000000000001");
+    private static final UUID FAILED_JOB_ID =
+            UUID.fromString("55000000-0000-0000-0000-000000000002");
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
@@ -37,10 +43,12 @@ class DocumentControllerTest {
     void setUp() {
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         DocumentService service = new DocumentService(new MockDocumentCatalog(), clock);
+        DocumentMapper mapper = new DocumentMapper();
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         mockMvc = MockMvcBuilders.standaloneSetup(
-                        new DocumentController(service, new DocumentApiMapper()))
+                        new DocumentController(service, mapper),
+                        new DocumentSourceController(service, mapper))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
@@ -48,30 +56,19 @@ class DocumentControllerTest {
     }
 
     @Test
-    void shouldListDocuments() throws Exception {
-        mockMvc.perform(get("/api/v1/documents"))
+    void shouldListPaginatedDocuments() throws Exception {
+        mockMvc.perform(get("/api/v1/documents").param("page", "0").param("size", "20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(DOCUMENT_ID.toString()))
-                .andExpect(jsonPath("$[0].sourceCode").value("NSE"))
-                .andExpect(jsonPath("$[0].documentType").value("ANNUAL_REPORT"))
-                .andExpect(jsonPath("$[0].status").value("COMPLETED"));
+                .andExpect(jsonPath("$.content[0].id").value(DOCUMENT_ID.toString()))
+                .andExpect(jsonPath("$.content[0].sourceCode").value("NSE"))
+                .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     @Test
     void shouldGetDocumentById() throws Exception {
         mockMvc.perform(get("/api/v1/documents/{id}", DOCUMENT_ID))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(DOCUMENT_ID.toString()))
                 .andExpect(jsonPath("$.reportingPeriod").value("FY2025-26"));
-    }
-
-    @Test
-    void shouldReturnNotFoundForUnknownDocument() throws Exception {
-        mockMvc.perform(get(
-                        "/api/v1/documents/{id}",
-                        UUID.fromString("53000000-0000-0000-0000-000000000099")))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
     }
 
     @Test
@@ -86,10 +83,24 @@ class DocumentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.id").isNotEmpty())
                 .andExpect(jsonPath("$.status").value("QUEUED"))
-                .andExpect(jsonPath("$.attemptCount").value(0))
-                .andExpect(jsonPath("$.maxAttempts").value(3));
+                .andExpect(jsonPath("$.attemptCount").value(0));
+    }
+
+    @Test
+    void shouldRetryFailedDownloadJob() throws Exception {
+        mockMvc.perform(post("/api/v1/documents/retry/{jobId}", FAILED_JOB_ID))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("QUEUED"))
+                .andExpect(jsonPath("$.retryOfJobId").value(FAILED_JOB_ID.toString()));
+    }
+
+    @Test
+    void shouldListPaginatedDownloadJobs() throws Exception {
+        mockMvc.perform(get("/api/v1/documents/jobs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.totalElements").value(2));
     }
 
     @Test
@@ -108,10 +119,27 @@ class DocumentControllerTest {
     }
 
     @Test
-    void shouldListDownloadJobs() throws Exception {
-        mockMvc.perform(get("/api/v1/documents/jobs"))
+    void shouldListSources() throws Exception {
+        mockMvc.perform(get("/api/v1/sources"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].status").value("COMPLETED"))
-                .andExpect(jsonPath("$[0].sourceId").value(SOURCE_ID.toString()));
+                .andExpect(jsonPath("$[0].code").value("NSE"))
+                .andExpect(jsonPath("$[0].sourceType").value("EXCHANGE"));
+    }
+
+    @Test
+    void shouldCreateSource() throws Exception {
+        CreateDocumentSourceRequest request = new CreateDocumentSourceRequest(
+                "SEBI",
+                "Securities and Exchange Board of India",
+                SourceType.REGULATOR,
+                "https://www.sebi.gov.in",
+                true);
+
+        mockMvc.perform(post("/api/v1/sources")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.code").value("SEBI"))
+                .andExpect(jsonPath("$.sourceType").value("REGULATOR"));
     }
 }

@@ -1,4 +1,4 @@
-package com.marketmind.documents.api;
+package com.marketmind.documents.dto;
 
 import java.util.UUID;
 
@@ -10,7 +10,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-@Schema(description = "Request to queue acquisition of a document")
+@Schema(description = "Request to queue acquisition of an official document")
 public record DownloadDocumentRequest(
         UUID documentId,
         @NotNull UUID sourceId,

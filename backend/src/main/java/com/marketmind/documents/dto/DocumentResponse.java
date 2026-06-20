@@ -1,4 +1,4 @@
-package com.marketmind.documents.api;
+package com.marketmind.documents.dto;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -9,7 +9,7 @@ import com.marketmind.documents.domain.DocumentType;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "Acquired company document metadata")
+@Schema(description = "Official company document metadata")
 public record DocumentResponse(
         UUID id,
         UUID companyId,

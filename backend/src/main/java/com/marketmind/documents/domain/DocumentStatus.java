@@ -2,9 +2,10 @@ package com.marketmind.documents.domain;
 
 public enum DocumentStatus {
     DISCOVERED,
-    DOWNLOAD_QUEUED,
-    DOWNLOADED,
-    PROCESSING,
+    QUEUED,
+    ACQUIRED,
+    PARSED,
     COMPLETED,
-    FAILED
+    FAILED,
+    ARCHIVED
 }
