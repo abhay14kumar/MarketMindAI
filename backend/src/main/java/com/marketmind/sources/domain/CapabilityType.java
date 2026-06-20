@@ -1,0 +1,13 @@
+package com.marketmind.sources.domain;
+
+public enum CapabilityType {
+    COMPANY_MASTER,
+    MARKET_PRICES,
+    MARKET_INDEXES,
+    COMPANY_FILINGS,
+    REGULATORY_FILINGS,
+    MUTUAL_FUND_DATA,
+    CORPORATE_ACTIONS,
+    FINANCIAL_STATEMENTS,
+    INVESTOR_RELATIONS_DOCUMENTS
+}

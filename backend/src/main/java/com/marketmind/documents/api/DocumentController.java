@@ -1,9 +1,13 @@
 package com.marketmind.documents.api;
 
+import java.util.List;
 import java.util.UUID;
 
+import com.marketmind.documents.application.DocumentDownloadService;
 import com.marketmind.documents.application.DocumentService;
+import com.marketmind.documents.dto.DocumentDownloadResponse;
 import com.marketmind.documents.dto.DocumentResponse;
+import com.marketmind.documents.dto.DocumentVersionResponse;
 import com.marketmind.documents.dto.DownloadDocumentRequest;
 import com.marketmind.documents.dto.DownloadJobResponse;
 import com.marketmind.documents.dto.PageResponse;
@@ -32,21 +36,26 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/documents")
-@Tag(name = "Document Acquisition", description = "Discover and queue company documents")
+@Tag(name = "Document Acquisition", description = "Acquire and inspect official company documents")
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final DocumentDownloadService documentDownloadService;
     private final DocumentMapper mapper;
 
-    public DocumentController(DocumentService documentService, DocumentMapper mapper) {
+    public DocumentController(
+            DocumentService documentService,
+            DocumentDownloadService documentDownloadService,
+            DocumentMapper mapper) {
         this.documentService = documentService;
+        this.documentDownloadService = documentDownloadService;
         this.mapper = mapper;
     }
 
     @GetMapping
     @Operation(
             summary = "List documents",
-            description = "Returns mock document metadata ordered by publication date.")
+            description = "Returns acquired document metadata ordered by publication date.")
     @ApiResponse(
             responseCode = "200",
             description = "Documents returned",
@@ -59,32 +68,50 @@ public class DocumentController {
 
     @PostMapping("/download")
     @Operation(
-            summary = "Queue document download",
-            description = "Creates a mock asynchronous download job. No network call is made.")
+            summary = "Download document",
+            description = "Downloads, checksums, stores, and versions a generic HTTP/HTTPS document.")
     @ApiResponses({
         @ApiResponse(
-                responseCode = "202",
-                description = "Download job accepted",
-                content = @Content(schema = @Schema(implementation = DownloadJobResponse.class))),
+                responseCode = "201",
+                description = "Document downloaded and stored",
+                content = @Content(schema = @Schema(
+                        implementation = DocumentDownloadResponse.class))),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Invalid or unsupported URL",
+                content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(
+                responseCode = "409",
+                description = "Duplicate document checksum",
+                content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(
+                responseCode = "413",
+                description = "Document exceeds configured size limit",
+                content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
         @ApiResponse(
                 responseCode = "422",
                 description = "Request validation failed",
+                content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(
+                responseCode = "502",
+                description = "Remote document download failed",
+                content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(
+                responseCode = "504",
+                description = "Remote document download timed out",
                 content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     })
-    public ResponseEntity<DownloadJobResponse> queueDownload(
+    public ResponseEntity<DocumentDownloadResponse> download(
             @Valid @RequestBody DownloadDocumentRequest request) {
-        DownloadJobResponse response = mapper.toResponse(
-                documentService.queueDownload(mapper.toCommand(request)));
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+        DocumentDownloadResponse response = mapper.toResponse(
+                documentDownloadService.download(mapper.toCommand(request)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get document", description = "Returns document metadata by identifier.")
     @ApiResponses({
-        @ApiResponse(
-                responseCode = "200",
-                description = "Document returned",
-                content = @Content(schema = @Schema(implementation = DocumentResponse.class))),
+        @ApiResponse(responseCode = "200", description = "Document returned"),
         @ApiResponse(
                 responseCode = "404",
                 description = "Document not found",
@@ -95,9 +122,7 @@ public class DocumentController {
     }
 
     @GetMapping("/jobs")
-    @Operation(
-            summary = "List download jobs",
-            description = "Returns mock and newly queued document-download jobs.")
+    @Operation(summary = "List download jobs", description = "Returns document-download jobs.")
     @ApiResponse(
             responseCode = "200",
             description = "Download jobs returned",
@@ -108,26 +133,20 @@ public class DocumentController {
         return mapper.toJobPage(documentService.getDownloadJobs(page, size));
     }
 
-    @PostMapping("/retry/{jobId}")
+    @GetMapping("/versions/{documentId}")
     @Operation(
-            summary = "Retry failed download",
-            description = "Creates a new queued mock job from a failed job. No network call is made.")
+            summary = "List document versions",
+            description = "Returns immutable versions for an acquired document.")
     @ApiResponses({
-        @ApiResponse(
-                responseCode = "202",
-                description = "Retry job accepted",
-                content = @Content(schema = @Schema(implementation = DownloadJobResponse.class))),
+        @ApiResponse(responseCode = "200", description = "Document versions returned"),
         @ApiResponse(
                 responseCode = "404",
-                description = "Download job not found",
-                content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
-        @ApiResponse(
-                responseCode = "409",
-                description = "Download job is not failed",
+                description = "Document not found",
                 content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     })
-    public ResponseEntity<DownloadJobResponse> retryDownload(@PathVariable UUID jobId) {
-        return ResponseEntity.accepted()
-                .body(mapper.toResponse(documentService.retryDownload(jobId)));
+    public List<DocumentVersionResponse> getVersions(@PathVariable UUID documentId) {
+        return documentDownloadService.getVersions(documentId).stream()
+                .map(mapper::toResponse)
+                .toList();
     }
 }

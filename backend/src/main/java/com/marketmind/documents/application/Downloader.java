@@ -1,6 +1,7 @@
 package com.marketmind.documents.application;
 
 import java.net.URI;
+import java.nio.file.Path;
 import java.time.Instant;
 
 public interface Downloader {
@@ -10,14 +11,11 @@ public interface Downloader {
     record DownloadRequest(URI sourceUrl, int maxBytes) {
     }
 
-    record DownloadResult(byte[] content, String contentType, Instant downloadedAt) {
-        public DownloadResult {
-            content = content.clone();
-        }
-
-        @Override
-        public byte[] content() {
-            return content.clone();
-        }
+    record DownloadResult(
+            Path temporaryFile,
+            String contentType,
+            Instant downloadedAt,
+            String originalFileName,
+            long sizeBytes) {
     }
 }

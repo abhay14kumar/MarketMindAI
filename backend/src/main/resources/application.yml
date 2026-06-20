@@ -46,6 +46,13 @@ management:
         enabled: true
       show-details: never
 
+document:
+  storage:
+    root-path: ${DOCUMENT_STORAGE_ROOT_PATH:data/documents}
+  download:
+    timeout-seconds: ${DOCUMENT_DOWNLOAD_TIMEOUT_SECONDS:30}
+    max-file-size-mb: ${DOCUMENT_DOWNLOAD_MAX_FILE_SIZE_MB:50}
+
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}

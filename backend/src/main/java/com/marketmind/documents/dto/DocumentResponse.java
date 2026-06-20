@@ -21,6 +21,8 @@ public record DocumentResponse(
         String sourceUrl,
         LocalDate publicationDate,
         @Schema(example = "FY2025-26") String reportingPeriod,
+        Integer fiscalYear,
+        String quarter,
         DocumentStatus status,
         UUID currentVersionId,
         Instant createdAt,

@@ -19,8 +19,8 @@ import com.marketmind.documents.domain.Document;
 import com.marketmind.documents.domain.DocumentSource;
 import com.marketmind.documents.domain.DocumentStatus;
 import com.marketmind.documents.domain.DocumentType;
+import com.marketmind.documents.domain.DocumentVersion;
 import com.marketmind.documents.domain.DownloadJob;
-import com.marketmind.documents.domain.DownloadStatus;
 import com.marketmind.documents.domain.SourceType;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -33,8 +33,6 @@ class DocumentServiceTest {
             UUID.fromString("53000000-0000-0000-0000-000000000001");
     private static final UUID SOURCE_ID =
             UUID.fromString("51000000-0000-0000-0000-000000000001");
-    private static final UUID FAILED_JOB_ID =
-            UUID.fromString("55000000-0000-0000-0000-000000000002");
 
     private InMemoryDocumentCatalog catalog;
     private DocumentService service;
@@ -60,37 +58,6 @@ class DocumentServiceTest {
         assertThatThrownBy(() -> service.getDocument(missingId))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining(missingId.toString());
-    }
-
-    @Test
-    void shouldQueueDownloadWithoutCallingExternalServices() {
-        DownloadJob job = service.queueDownload(new DownloadDocumentCommand(
-                DOCUMENT_ID,
-                SOURCE_ID,
-                URI.create("https://example.invalid/annual-report.pdf"),
-                3));
-
-        assertThat(job.status()).isEqualTo(DownloadStatus.QUEUED);
-        assertThat(job.attemptCount()).isZero();
-        assertThat(job.submittedAt()).isEqualTo(NOW);
-        assertThat(catalog.jobs).contains(job);
-    }
-
-    @Test
-    void shouldRetryFailedDownloadAsNewJob() {
-        DownloadJob retried = service.retryDownload(FAILED_JOB_ID);
-
-        assertThat(retried.id()).isNotEqualTo(FAILED_JOB_ID);
-        assertThat(retried.retryOfJobId()).isEqualTo(FAILED_JOB_ID);
-        assertThat(retried.status()).isEqualTo(DownloadStatus.QUEUED);
-    }
-
-    @Test
-    void shouldRejectRetryForNonFailedJob() {
-        assertThatThrownBy(() -> service.retryDownload(
-                        UUID.fromString("55000000-0000-0000-0000-000000000001")))
-                .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("failed");
     }
 
     @Test
@@ -120,9 +87,8 @@ class DocumentServiceTest {
 
     private static final class InMemoryDocumentCatalog implements DocumentCatalog {
 
-        private final Document document;
+        private final List<Document> documents = new ArrayList<>();
         private final List<DocumentSource> sources = new ArrayList<>();
-        private final List<DownloadJob> jobs = new ArrayList<>();
 
         private InMemoryDocumentCatalog() {
             DocumentSource source = new DocumentSource(
@@ -136,7 +102,7 @@ class DocumentServiceTest {
                     NOW,
                     NOW);
             sources.add(source);
-            document = new Document(
+            documents.add(new Document(
                     DOCUMENT_ID,
                     null,
                     source,
@@ -144,41 +110,57 @@ class DocumentServiceTest {
                     "Annual Report",
                     URI.create("https://example.invalid/annual-report.pdf"),
                     null,
-                    "FY2025-26",
+                    "FY2026",
+                    2026,
+                    null,
                     DocumentStatus.COMPLETED,
                     null,
                     NOW,
-                    NOW);
-            jobs.add(job(
-                    UUID.fromString("55000000-0000-0000-0000-000000000001"),
-                    DownloadStatus.COMPLETED));
-            jobs.add(job(FAILED_JOB_ID, DownloadStatus.FAILED));
+                    NOW));
         }
 
         @Override
         public List<Document> findAllDocuments() {
-            return List.of(document);
+            return List.copyOf(documents);
         }
 
         @Override
         public Optional<Document> findDocumentById(UUID id) {
-            return document.id().equals(id) ? Optional.of(document) : Optional.empty();
+            return documents.stream().filter(document -> document.id().equals(id)).findFirst();
+        }
+
+        @Override
+        public Optional<Document> findDocumentBySourceUrl(URI sourceUrl) {
+            return documents.stream()
+                    .filter(document -> document.sourceUrl().equals(sourceUrl))
+                    .findFirst();
+        }
+
+        @Override
+        public Document saveDocument(Document document) {
+            documents.removeIf(existing -> existing.id().equals(document.id()));
+            documents.add(document);
+            return document;
         }
 
         @Override
         public List<DownloadJob> findAllJobs() {
-            return List.copyOf(jobs);
+            return List.of();
         }
 
         @Override
         public Optional<DownloadJob> findJobById(UUID id) {
-            return jobs.stream().filter(job -> job.id().equals(id)).findFirst();
+            return Optional.empty();
         }
 
         @Override
         public DownloadJob saveJob(DownloadJob job) {
-            jobs.add(job);
             return job;
+        }
+
+        @Override
+        public Optional<DocumentSource> findSourceById(UUID id) {
+            return sources.stream().filter(source -> source.id().equals(id)).findFirst();
         }
 
         @Override
@@ -199,22 +181,19 @@ class DocumentServiceTest {
             return source;
         }
 
-        private DownloadJob job(UUID id, DownloadStatus status) {
-            return new DownloadJob(
-                    id,
-                    DOCUMENT_ID,
-                    SOURCE_ID,
-                    URI.create("https://example.invalid/annual-report.pdf"),
-                    status,
-                    status == DownloadStatus.FAILED ? 3 : 1,
-                    3,
-                    null,
-                    NOW.minusSeconds(60),
-                    NOW.minusSeconds(30),
-                    NOW,
-                    null,
-                    status == DownloadStatus.FAILED ? "MOCK_FAILURE" : null,
-                    status == DownloadStatus.FAILED ? "Synthetic failure." : null);
+        @Override
+        public Optional<DocumentVersion> findVersionByChecksum(String checksumSha256) {
+            return Optional.empty();
+        }
+
+        @Override
+        public List<DocumentVersion> findVersionsByDocumentId(UUID documentId) {
+            return List.of();
+        }
+
+        @Override
+        public DocumentVersion saveVersion(DocumentVersion version) {
+            return version;
         }
     }
 }

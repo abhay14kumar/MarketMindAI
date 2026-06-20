@@ -14,6 +14,8 @@ public record Document(
         URI sourceUrl,
         LocalDate publicationDate,
         String reportingPeriod,
+        Integer fiscalYear,
+        String quarter,
         DocumentStatus status,
         UUID currentVersionId,
         Instant createdAt,

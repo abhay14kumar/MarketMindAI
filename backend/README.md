@@ -15,16 +15,18 @@ Spring Boot foundation for the MarketMind AI public backend API.
 
 ## Current Scope
 
-This phase provides infrastructure only:
+The backend currently includes:
 
-- application bootstrap;
-- PostgreSQL and JPA configuration;
-- initial Flyway schema;
-- CORS for the Vite frontend at `http://localhost:5173`;
-- global problem-details exception handling;
-- application and Actuator health endpoints.
+- company master CRUD;
+- market-data and scheduler foundations;
+- document source and acquisition metadata;
+- generic HTTP/HTTPS document downloading;
+- SHA-256 duplicate detection and immutable document versions;
+- local filesystem storage with PostgreSQL-backed metadata;
+- global problem-details exception handling and health endpoints.
 
-Authentication, repositories, entities, use cases, and business logic are intentionally deferred.
+NSE/BSE/SEBI-specific adapters, parsing, AI processing, embeddings, and authentication
+remain out of scope.
 
 ## Prerequisites
 
@@ -66,6 +68,9 @@ export CORS_ALLOWED_ORIGINS='http://localhost:5173'
 export DB_MAX_POOL_SIZE='10'
 export DB_MIN_IDLE='2'
 export DB_CONNECTION_TIMEOUT_MS='30000'
+export DOCUMENT_STORAGE_ROOT_PATH='data/documents'
+export DOCUMENT_DOWNLOAD_TIMEOUT_SECONDS='30'
+export DOCUMENT_DOWNLOAD_MAX_FILE_SIZE_MB='50'
 ```
 
 `CORS_ALLOWED_ORIGINS` accepts a comma-separated list.
@@ -98,6 +103,53 @@ curl http://localhost:8080/actuator/health
 mvn clean verify
 ```
 
+## Document Download Pipeline
+
+The generic download endpoint accepts public HTTP or HTTPS URLs:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/documents/download \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "sourceUrl": "https://example.com/annual-report.pdf",
+    "title": "Example Company Annual Report",
+    "documentType": "ANNUAL_REPORT",
+    "companyId": null,
+    "sourceId": null,
+    "fiscalYear": 2026,
+    "quarter": null
+  }'
+```
+
+The synchronous pipeline:
+
+1. records a `STARTED` download job;
+2. streams the response to a bounded temporary file;
+3. calculates a SHA-256 checksum and rejects duplicates;
+4. stores the file under
+   `data/documents/{yyyy}/{MM}/{checksum}/{original-file-name}`;
+5. persists document metadata and an immutable version;
+6. marks the job `COMPLETED` or `FAILED`.
+
+Files under `data/documents/` are local runtime data and are ignored by Git.
+Production deployments should mount durable storage and override
+`DOCUMENT_STORAGE_ROOT_PATH`.
+
+Available document APIs:
+
+```text
+POST /api/v1/documents/download
+GET  /api/v1/documents
+GET  /api/v1/documents/{id}
+GET  /api/v1/documents/jobs
+GET  /api/v1/documents/versions/{documentId}
+```
+
+Security controls include protocol allowlisting, timeout and file-size limits,
+bounded redirects, private/local network rejection, safe filenames, and
+path-containment checks. Generic downloading should still be exposed only to
+authorized users when authentication is introduced.
+
 ## Health Checks
 
 Application health:
@@ -129,6 +181,10 @@ src/main/java/com/marketmind/
 ├── common/
 │   └── exception/
 ├── config/
+├── company/
+├── documents/
+├── marketdata/
+├── scheduler/
 └── health/
     └── adapter/in/web/
 ```

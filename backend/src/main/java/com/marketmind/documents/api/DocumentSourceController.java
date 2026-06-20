@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/sources")
+@RequestMapping("/api/v1/document-sources")
 @Tag(name = "Document Sources", description = "Manage official document acquisition sources")
 public class DocumentSourceController {
 

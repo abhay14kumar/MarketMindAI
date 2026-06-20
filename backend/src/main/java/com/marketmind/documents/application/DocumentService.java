@@ -10,7 +10,6 @@ import com.marketmind.common.exception.ConflictException;
 import com.marketmind.common.exception.ResourceNotFoundException;
 import com.marketmind.documents.domain.Document;
 import com.marketmind.documents.domain.DocumentSource;
-import com.marketmind.documents.domain.DownloadStatus;
 import com.marketmind.documents.domain.DownloadJob;
 
 import org.springframework.stereotype.Service;
@@ -59,51 +58,6 @@ public class DocumentService {
                 null,
                 now,
                 now));
-    }
-
-    public DownloadJob queueDownload(DownloadDocumentCommand command) {
-        Instant submittedAt = clock.instant();
-        DownloadJob job = new DownloadJob(
-                UUID.randomUUID(),
-                command.documentId(),
-                command.sourceId(),
-                command.sourceUrl(),
-                DownloadStatus.QUEUED,
-                0,
-                command.maxAttempts(),
-                null,
-                submittedAt,
-                null,
-                null,
-                submittedAt,
-                null,
-                null);
-        return documentCatalog.saveJob(job);
-    }
-
-    public DownloadJob retryDownload(UUID jobId) {
-        DownloadJob failedJob = documentCatalog.findJobById(jobId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Download job not found: " + jobId));
-        if (failedJob.status() != DownloadStatus.FAILED) {
-            throw new ConflictException("Only failed download jobs can be retried.");
-        }
-        Instant submittedAt = clock.instant();
-        return documentCatalog.saveJob(new DownloadJob(
-                UUID.randomUUID(),
-                failedJob.documentId(),
-                failedJob.sourceId(),
-                failedJob.requestedUrl(),
-                DownloadStatus.QUEUED,
-                0,
-                failedJob.maxAttempts(),
-                failedJob.id(),
-                submittedAt,
-                null,
-                null,
-                submittedAt,
-                null,
-                null));
     }
 
     private <T> PageResult<T> page(List<T> items, int page, int size) {

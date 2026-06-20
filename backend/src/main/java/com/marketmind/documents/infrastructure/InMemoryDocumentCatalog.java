@@ -16,14 +16,12 @@ import com.marketmind.documents.domain.Document;
 import com.marketmind.documents.domain.DocumentSource;
 import com.marketmind.documents.domain.DocumentStatus;
 import com.marketmind.documents.domain.DocumentType;
+import com.marketmind.documents.domain.DocumentVersion;
 import com.marketmind.documents.domain.DownloadJob;
 import com.marketmind.documents.domain.DownloadStatus;
 import com.marketmind.documents.domain.SourceType;
 
-import org.springframework.stereotype.Component;
-
-@Component
-public class MockDocumentCatalog implements DocumentCatalog {
+public class InMemoryDocumentCatalog implements DocumentCatalog {
 
     private static final Instant MOCK_TIME = Instant.parse("2026-06-19T12:00:00Z");
     private static final UUID NSE_SOURCE_ID =
@@ -35,11 +33,12 @@ public class MockDocumentCatalog implements DocumentCatalog {
     private static final UUID FAILED_JOB_ID =
             UUID.fromString("55000000-0000-0000-0000-000000000002");
 
-    private final Map<UUID, Document> documents;
+    private final Map<UUID, Document> documents = new ConcurrentHashMap<>();
     private final Map<UUID, DocumentSource> sources = new ConcurrentHashMap<>();
     private final Map<UUID, DownloadJob> jobs = new ConcurrentHashMap<>();
+    private final Map<UUID, DocumentVersion> versions = new ConcurrentHashMap<>();
 
-    public MockDocumentCatalog() {
+    public InMemoryDocumentCatalog() {
         DocumentSource source = new DocumentSource(
                 NSE_SOURCE_ID,
                 "NSE",
@@ -59,11 +58,25 @@ public class MockDocumentCatalog implements DocumentCatalog {
                 URI.create("https://example.invalid/marketmind/annual-report-2026.pdf"),
                 LocalDate.of(2026, 5, 28),
                 "FY2025-26",
+                2026,
+                null,
                 DocumentStatus.COMPLETED,
                 UUID.fromString("54000000-0000-0000-0000-000000000001"),
                 MOCK_TIME,
                 MOCK_TIME);
-        documents = Map.of(document.id(), document);
+        DocumentVersion version = new DocumentVersion(
+                document.currentVersionId(),
+                document.id(),
+                1,
+                "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                "2026/05/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc/"
+                        + "annual-report.pdf",
+                "application/pdf",
+                1024,
+                MOCK_TIME,
+                MOCK_TIME);
+        documents.put(document.id(), document);
+        versions.put(version.id(), version);
 
         DownloadJob completedJob = new DownloadJob(
                 UUID.fromString("55000000-0000-0000-0000-000000000001"),
@@ -113,6 +126,19 @@ public class MockDocumentCatalog implements DocumentCatalog {
     }
 
     @Override
+    public Optional<Document> findDocumentBySourceUrl(URI sourceUrl) {
+        return documents.values().stream()
+                .filter(document -> document.sourceUrl().equals(sourceUrl))
+                .findFirst();
+    }
+
+    @Override
+    public Document saveDocument(Document document) {
+        documents.put(document.id(), document);
+        return document;
+    }
+
+    @Override
     public List<DownloadJob> findAllJobs() {
         List<DownloadJob> result = new ArrayList<>(jobs.values());
         result.sort(Comparator.comparing(DownloadJob::submittedAt).reversed());
@@ -128,6 +154,11 @@ public class MockDocumentCatalog implements DocumentCatalog {
     public DownloadJob saveJob(DownloadJob job) {
         jobs.put(job.id(), job);
         return job;
+    }
+
+    @Override
+    public Optional<DocumentSource> findSourceById(UUID id) {
+        return Optional.ofNullable(sources.get(id));
     }
 
     @Override
@@ -147,5 +178,26 @@ public class MockDocumentCatalog implements DocumentCatalog {
     public DocumentSource saveSource(DocumentSource source) {
         sources.put(source.id(), source);
         return source;
+    }
+
+    @Override
+    public Optional<DocumentVersion> findVersionByChecksum(String checksumSha256) {
+        return versions.values().stream()
+                .filter(version -> version.checksumSha256().equalsIgnoreCase(checksumSha256))
+                .findFirst();
+    }
+
+    @Override
+    public List<DocumentVersion> findVersionsByDocumentId(UUID documentId) {
+        return versions.values().stream()
+                .filter(version -> version.documentId().equals(documentId))
+                .sorted(Comparator.comparingInt(DocumentVersion::versionNumber).reversed())
+                .toList();
+    }
+
+    @Override
+    public DocumentVersion saveVersion(DocumentVersion version) {
+        versions.put(version.id(), version);
+        return version;
     }
 }

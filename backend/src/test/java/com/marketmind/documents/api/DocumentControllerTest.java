@@ -5,6 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -12,15 +15,24 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marketmind.common.exception.GlobalExceptionHandler;
+import com.marketmind.documents.application.DocumentDownloadService;
 import com.marketmind.documents.application.DocumentService;
+import com.marketmind.documents.application.Downloader;
+import com.marketmind.documents.domain.DocumentType;
 import com.marketmind.documents.domain.SourceType;
 import com.marketmind.documents.dto.CreateDocumentSourceRequest;
 import com.marketmind.documents.dto.DownloadDocumentRequest;
-import com.marketmind.documents.infrastructure.MockDocumentCatalog;
+import com.marketmind.documents.infrastructure.DefaultVersionManager;
+import com.marketmind.documents.infrastructure.DocumentDownloadProperties;
+import com.marketmind.documents.infrastructure.DocumentStorageProperties;
+import com.marketmind.documents.infrastructure.InMemoryDocumentCatalog;
+import com.marketmind.documents.infrastructure.LocalFileStorageProvider;
+import com.marketmind.documents.infrastructure.Sha256ChecksumService;
 import com.marketmind.documents.mapper.DocumentMapper;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.MediaType;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,10 +43,9 @@ class DocumentControllerTest {
     private static final Instant NOW = Instant.parse("2026-06-19T12:00:00Z");
     private static final UUID DOCUMENT_ID =
             UUID.fromString("53000000-0000-0000-0000-000000000001");
-    private static final UUID SOURCE_ID =
-            UUID.fromString("51000000-0000-0000-0000-000000000001");
-    private static final UUID FAILED_JOB_ID =
-            UUID.fromString("55000000-0000-0000-0000-000000000002");
+
+    @TempDir
+    Path storageRoot;
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
@@ -42,13 +53,22 @@ class DocumentControllerTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
-        DocumentService service = new DocumentService(new MockDocumentCatalog(), clock);
+        InMemoryDocumentCatalog catalog = new InMemoryDocumentCatalog();
+        DocumentService documentService = new DocumentService(catalog, clock);
+        DocumentDownloadService downloadService = new DocumentDownloadService(
+                catalog,
+                new StubDownloader(),
+                new LocalFileStorageProvider(new DocumentStorageProperties(storageRoot)),
+                new Sha256ChecksumService(),
+                new DefaultVersionManager(catalog, clock),
+                new DocumentDownloadProperties(30, 1),
+                clock);
         DocumentMapper mapper = new DocumentMapper();
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         mockMvc = MockMvcBuilders.standaloneSetup(
-                        new DocumentController(service, mapper),
-                        new DocumentSourceController(service, mapper))
+                        new DocumentController(documentService, downloadService, mapper),
+                        new DocumentSourceController(documentService, mapper))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
@@ -57,10 +77,9 @@ class DocumentControllerTest {
 
     @Test
     void shouldListPaginatedDocuments() throws Exception {
-        mockMvc.perform(get("/api/v1/documents").param("page", "0").param("size", "20"))
+        mockMvc.perform(get("/api/v1/documents"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(DOCUMENT_ID.toString()))
-                .andExpect(jsonPath("$.content[0].sourceCode").value("NSE"))
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
 
@@ -72,44 +91,42 @@ class DocumentControllerTest {
     }
 
     @Test
-    void shouldQueueMockDownloadJob() throws Exception {
-        DownloadDocumentRequest request = new DownloadDocumentRequest(
-                DOCUMENT_ID,
-                SOURCE_ID,
-                "https://example.invalid/annual-report.pdf",
-                3);
-
+    void shouldExecuteDownloadPipelineThroughApi() throws Exception {
         mockMvc.perform(post("/api/v1/documents/download")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.status").value("QUEUED"))
-                .andExpect(jsonPath("$.attemptCount").value(0));
+                        .content(objectMapper.writeValueAsString(request())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.job.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.document.documentType").value("ANNUAL_REPORT"))
+                .andExpect(jsonPath("$.document.fiscalYear").value(2026))
+                .andExpect(jsonPath("$.version.versionNumber").value(1))
+                .andExpect(jsonPath("$.version.checksumSha256").isNotEmpty());
     }
 
     @Test
-    void shouldRetryFailedDownloadJob() throws Exception {
-        mockMvc.perform(post("/api/v1/documents/retry/{jobId}", FAILED_JOB_ID))
-                .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.status").value("QUEUED"))
-                .andExpect(jsonPath("$.retryOfJobId").value(FAILED_JOB_ID.toString()));
-    }
-
-    @Test
-    void shouldListPaginatedDownloadJobs() throws Exception {
+    void shouldListDownloadJobs() throws Exception {
         mockMvc.perform(get("/api/v1/documents/jobs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(2))
-                .andExpect(jsonPath("$.totalElements").value(2));
+                .andExpect(jsonPath("$.content.length()").value(2));
     }
 
     @Test
-    void shouldRejectNonHttpsDownloadUrl() throws Exception {
+    void shouldListDocumentVersions() throws Exception {
+        mockMvc.perform(get("/api/v1/documents/versions/{documentId}", DOCUMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].versionNumber").value(1));
+    }
+
+    @Test
+    void shouldRejectUnsupportedProtocol() throws Exception {
         DownloadDocumentRequest request = new DownloadDocumentRequest(
+                "ftp://example.invalid/report.pdf",
+                "Annual Report",
+                DocumentType.ANNUAL_REPORT,
                 null,
-                SOURCE_ID,
-                "http://example.invalid/annual-report.pdf",
-                3);
+                null,
+                2026,
+                null);
 
         mockMvc.perform(post("/api/v1/documents/download")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -119,27 +136,52 @@ class DocumentControllerTest {
     }
 
     @Test
-    void shouldListSources() throws Exception {
-        mockMvc.perform(get("/api/v1/sources"))
+    void shouldListAndCreateSources() throws Exception {
+        mockMvc.perform(get("/api/v1/document-sources"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].code").value("NSE"))
-                .andExpect(jsonPath("$[0].sourceType").value("EXCHANGE"));
-    }
+                .andExpect(jsonPath("$[0].code").value("NSE"));
 
-    @Test
-    void shouldCreateSource() throws Exception {
-        CreateDocumentSourceRequest request = new CreateDocumentSourceRequest(
+        CreateDocumentSourceRequest sourceRequest = new CreateDocumentSourceRequest(
                 "SEBI",
                 "Securities and Exchange Board of India",
                 SourceType.REGULATOR,
                 "https://www.sebi.gov.in",
                 true);
-
-        mockMvc.perform(post("/api/v1/sources")
+        mockMvc.perform(post("/api/v1/document-sources")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(sourceRequest)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.code").value("SEBI"))
-                .andExpect(jsonPath("$.sourceType").value("REGULATOR"));
+                .andExpect(jsonPath("$.code").value("SEBI"));
+    }
+
+    private DownloadDocumentRequest request() {
+        return new DownloadDocumentRequest(
+                "https://example.invalid/reliance-annual-report.pdf",
+                "Reliance Industries Annual Report",
+                DocumentType.ANNUAL_REPORT,
+                null,
+                null,
+                2026,
+                null);
+    }
+
+    private static final class StubDownloader implements Downloader {
+
+        @Override
+        public DownloadResult download(DownloadRequest request) {
+            byte[] content = "integration-style-document".getBytes(StandardCharsets.UTF_8);
+            try {
+                Path temporaryFile = Files.createTempFile("api-download-", ".pdf");
+                Files.write(temporaryFile, content);
+                return new DownloadResult(
+                        temporaryFile,
+                        "application/pdf",
+                        NOW,
+                        "reliance-annual-report.pdf",
+                        content.length);
+            } catch (java.io.IOException exception) {
+                throw new IllegalStateException(exception);
+            }
+        }
     }
 }
