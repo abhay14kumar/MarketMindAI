@@ -1,0 +1,179 @@
+name: marketmind-local
+
+# Shared logging policy prevents unbounded container logs during local development.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${LOG_MAX_SIZE:-10m}"
+    max-file: "${LOG_MAX_FILES:-3}"
+
+services:
+  # PostgreSQL is the canonical relational store for users, portfolios,
+  # transactions, document metadata, and application audit records.
+  postgres:
+    image: "${POSTGRES_IMAGE:-postgres:16-alpine}"
+    container_name: marketmind-postgres
+    restart: unless-stopped
+    env_file:
+      - ./docker/.env
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:?Set POSTGRES_DB in docker/.env}"
+      POSTGRES_USER: "${POSTGRES_USER:?Set POSTGRES_USER in docker/.env}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in docker/.env}"
+      PGDATA: /var/lib/postgresql/data/pgdata
+      TZ: "${TZ:-UTC}"
+      PGTZ: "${TZ:-UTC}"
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+      - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -h 127.0.0.1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging: *default-logging
+    cpus: "${POSTGRES_CPUS:-1.0}"
+    mem_limit: "${POSTGRES_MEMORY_LIMIT:-1g}"
+    mem_reservation: "${POSTGRES_MEMORY_RESERVATION:-256m}"
+    pids_limit: 200
+    stop_grace_period: 60s
+    networks:
+      - marketmind
+
+  # Redis provides low-latency caching and future job coordination. Persistence
+  # is enabled for local restart resilience; Redis is not a source of truth.
+  redis:
+    image: "${REDIS_IMAGE:-redis:7-alpine}"
+    container_name: marketmind-redis
+    restart: unless-stopped
+    env_file:
+      - ./docker/.env
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD in docker/.env}"
+      TZ: "${TZ:-UTC}"
+    command:
+      - sh
+      - -ec
+      - exec redis-server --appendonly yes --appendfsync everysec --requirepass "$${REDIS_PASSWORD}"
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - redis-cli --no-auth-warning -a "$${REDIS_PASSWORD}" ping | grep -q PONG
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging: *default-logging
+    cpus: "${REDIS_CPUS:-0.5}"
+    mem_limit: "${REDIS_MEMORY_LIMIT:-512m}"
+    mem_reservation: "${REDIS_MEMORY_RESERVATION:-64m}"
+    pids_limit: 100
+    stop_grace_period: 30s
+    networks:
+      - marketmind
+
+  # Qdrant stores the rebuildable vector index used by retrieval-augmented
+  # generation. The API key protects local HTTP/gRPC access.
+  qdrant:
+    image: "${QDRANT_IMAGE:-qdrant/qdrant:latest}"
+    container_name: marketmind-qdrant
+    restart: unless-stopped
+    env_file:
+      - ./docker/.env
+    environment:
+      QDRANT__SERVICE__API_KEY: "${QDRANT_API_KEY:?Set QDRANT_API_KEY in docker/.env}"
+      QDRANT__SERVICE__HTTP_PORT: "6333"
+      QDRANT__SERVICE__GRPC_PORT: "6334"
+      TZ: "${TZ:-UTC}"
+    ports:
+      - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
+      - "127.0.0.1:${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      # A TCP check verifies process readiness without printing the API key.
+      test:
+        - CMD-SHELL
+        - bash -ec 'exec 3<>/dev/tcp/127.0.0.1/6333'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    logging: *default-logging
+    cpus: "${QDRANT_CPUS:-1.0}"
+    mem_limit: "${QDRANT_MEMORY_LIMIT:-1g}"
+    mem_reservation: "${QDRANT_MEMORY_RESERVATION:-256m}"
+    pids_limit: 200
+    stop_grace_period: 60s
+    networks:
+      - marketmind
+
+  # pgAdmin is an operator-only browser UI for inspecting local PostgreSQL.
+  # It waits for PostgreSQL health before starting and is bound to loopback.
+  pgadmin:
+    image: "${PGADMIN_IMAGE:-dpage/pgadmin4:latest}"
+    container_name: marketmind-pgadmin
+    restart: unless-stopped
+    env_file:
+      - ./docker/.env
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "${PGADMIN_DEFAULT_EMAIL:?Set PGADMIN_DEFAULT_EMAIL in docker/.env}"
+      PGADMIN_DEFAULT_PASSWORD: "${PGADMIN_DEFAULT_PASSWORD:?Set PGADMIN_DEFAULT_PASSWORD in docker/.env}"
+      PGADMIN_LISTEN_PORT: "80"
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "True"
+      PGADMIN_DISABLE_POSTFIX: "True"
+      TZ: "${TZ:-UTC}"
+    ports:
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget --quiet --spider http://127.0.0.1:80/misc/ping
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging: *default-logging
+    cpus: "${PGADMIN_CPUS:-0.5}"
+    mem_limit: "${PGADMIN_MEMORY_LIMIT:-512m}"
+    mem_reservation: "${PGADMIN_MEMORY_RESERVATION:-128m}"
+    pids_limit: 200
+    stop_grace_period: 30s
+    networks:
+      - marketmind
+
+volumes:
+  postgres_data:
+    name: marketmind-postgres-data
+  redis_data:
+    name: marketmind-redis-data
+  qdrant_data:
+    name: marketmind-qdrant-data
+  pgadmin_data:
+    name: marketmind-pgadmin-data
+
+networks:
+  marketmind:
+    name: marketmind-local-network
+    driver: bridge

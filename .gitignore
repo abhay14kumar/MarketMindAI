@@ -1,0 +1,31 @@
+# Environment and secret files
+docker/.env
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Java and Maven
+target/
+backend/target/
+
+# Node.js
+node_modules/
+frontend/node_modules/
+
+# Python
+ai-service/.venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Operating system and IDE files
+.DS_Store
+.idea/
+.vscode/settings.json
+
+# Logs and generated manifests
+logs/
+*.log
+rendered.yaml
+backend/rendered.yaml

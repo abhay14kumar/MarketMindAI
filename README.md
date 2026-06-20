@@ -1,147 +1,191 @@
 # MarketMind AI
 
-MarketMind AI is an AI-powered investment research and portfolio assistant designed to help investors turn fragmented market information into clear, evidence-backed insights.
+MarketMind AI is an AI-powered investment research and portfolio assistant. It is designed to collect company filings, analyze annual reports, quarterly results, and earnings-call transcripts, track market data, monitor portfolios, and provide evidence-based **buy/watch/hold/rotate decision support**.
 
-The platform is intended to combine market data, company fundamentals, financial documents, portfolio analytics, and retrieval-augmented generation (RAG) in one research workspace. MarketMind AI should help users investigate opportunities, understand portfolio risk, and make more informed decisions without presenting AI-generated output as financial advice.
-
-> **Project status:** Early planning and architecture. The repository currently contains the proposed monorepo structure and documentation placeholders; application services have not yet been implemented.
+MarketMind AI is a research tool—not an automatic trading system. It does not place orders, guarantee returns, or replace a qualified financial professional.
 
 ## Product Vision
 
-MarketMind AI aims to make high-quality investment research more accessible, explainable, and efficient.
+Investment research is fragmented across regulatory filings, financial statements, transcripts, market feeds, and personal portfolio records. MarketMind AI aims to bring these sources into one traceable research workspace.
 
-The planned product experience includes:
+The planned experience includes:
 
-- A conversational research assistant grounded in trusted financial sources
-- Company, industry, and market research with source citations
-- Portfolio tracking, allocation analysis, and risk insights
-- Financial document ingestion and semantic search
-- Watchlists, alerts, and personalized research workflows
-- Transparent AI responses that separate sourced facts, calculations, and generated analysis
+- source-grounded company and industry research;
+- retrieval-augmented generation with document citations;
+- financial statement, valuation, and risk analysis;
+- portfolio exposure, concentration, and performance insights;
+- specialist Filing, Financial, Valuation, Risk, and Portfolio agents;
+- CIO Agent synthesis that preserves uncertainty and contrary evidence;
+- transparent data timestamps, assumptions, calculations, and limitations.
 
-MarketMind AI is a decision-support tool. It should augment investor research—not execute trades, guarantee outcomes, or replace a licensed financial professional.
+All recommendation-like output remains non-binding decision support.
 
-## Proposed Tech Stack
+## Current Status
 
-The final technology choices will be validated during the architecture phase. The current target stack is:
+The repository currently includes:
 
-| Area | Proposed technologies | Purpose |
-| --- | --- | --- |
-| Web application | Next.js, React, TypeScript | Research dashboard and portfolio experience |
-| Backend API | Python, FastAPI | Authentication, portfolio, research, and data APIs |
-| AI service | Python, LLM APIs, RAG framework | Retrieval, orchestration, prompting, and response generation |
-| Data layer | PostgreSQL, pgvector, Redis | Relational data, vector search, caching, and background jobs |
-| Market data | Pluggable third-party providers | Prices, fundamentals, filings, and market news |
-| Infrastructure | Docker, Kubernetes, Infrastructure as Code | Repeatable local, staging, and production environments |
-| Observability | OpenTelemetry, Prometheus, Grafana | Logs, metrics, traces, and service health |
-| Quality | Automated tests, linting, type checking, CI/CD | Safe and consistent delivery |
+- Phase 1 product, architecture, AI/RAG, security, API, and testing documentation;
+- a Java 21 Spring Boot backend foundation;
+- a Clean Architecture Company Master CRUD module;
+- PostgreSQL Flyway migrations;
+- local PostgreSQL, Redis, Qdrant, and pgAdmin infrastructure;
+- Kubernetes and Helm deployment foundations.
 
-Provider-specific integrations and framework choices should remain replaceable where practical to reduce vendor lock-in.
+The frontend and AI service directories are reserved for later implementation.
+
+## Tech Stack
+
+| Area | Technology |
+| --- | --- |
+| Frontend | React, TypeScript, Vite |
+| Backend | Java 21, Spring Boot 3, Maven |
+| Backend APIs | Spring Web, Validation, OpenAPI |
+| Persistence | Spring Data JPA, PostgreSQL 16, Flyway |
+| AI service | Python, FastAPI |
+| Vector database | Qdrant |
+| Cache/coordination | Redis 7 |
+| Local models | Ollama, `llama3.1`, `nomic-embed-text` |
+| Local infrastructure | Docker Compose |
+| Kubernetes packaging | Helm |
 
 ## Repository Structure
 
 ```text
 MarketMindAI/
-├── frontend/         # Web application and user interface
-├── backend/          # Core API, business logic, and integrations
-├── ai-service/       # RAG pipeline, model orchestration, and AI evaluation
-├── database/         # Schemas, migrations, seeds, and database tooling
-├── datasets/         # Development and evaluation dataset definitions
-├── prompts/          # Versioned prompt templates and prompt documentation
-├── docs/             # Product and system design documents
-│   ├── PRD.md
-│   ├── HLD.md
-│   ├── LLD.md
-│   ├── AI_RAG_DESIGN.md
-│   └── ROADMAP.md
-├── docker/           # Container definitions and local orchestration
-├── infrastructure/   # Cloud infrastructure as code
-├── kubernetes/       # Kubernetes manifests and deployment configuration
-├── monitoring/       # Dashboards, alerts, and observability configuration
-├── scripts/          # Development, maintenance, and automation scripts
-└── .vscode/          # Shared editor configuration
+├── architecture/     # Deployment and architecture notes
+├── backend/          # Spring Boot API and domain modules
+├── frontend/         # React + TypeScript + Vite application
+├── ai-service/       # FastAPI RAG and multi-agent service
+├── database/         # Shared database tooling and artifacts
+├── datasets/         # Development and AI evaluation datasets
+├── docker/           # Local environment configuration and guidance
+├── docs/             # Product and engineering specifications
+├── helm/             # MarketMind AI Helm chart
+├── infrastructure/   # Cloud infrastructure definitions
+├── kubernetes/       # Kubernetes deployment documentation
+├── monitoring/       # Observability configuration
+├── prompts/          # Versioned AI prompt templates
+└── scripts/          # Development and operational automation
 ```
 
-## Local Setup Plan
+## Local Setup
 
-Local development is not available yet because application code and dependency manifests have not been added. The intended setup flow is:
+### Prerequisites
 
-1. Install the required runtimes and tools:
-   - Node.js and a selected package manager
-   - Python and a selected environment/package manager
-   - Docker with Docker Compose
-2. Clone the repository and create local environment files from committed example files such as `.env.example`.
-3. Start PostgreSQL, Redis, and any local observability dependencies with Docker Compose.
-4. Apply database migrations and load development seed data.
-5. Install dependencies for `frontend/`, `backend/`, and `ai-service/`.
-6. Configure development-only market-data and model-provider credentials.
-7. Start each service through a root-level development command.
-8. Run linting, type checks, unit tests, integration tests, and AI evaluation suites before submitting changes.
+- Docker Engine or Docker Desktop with Docker Compose
+- Java 21
+- Maven 3.9+
 
-As implementation begins, this section should be replaced with exact, copy-and-paste commands and documented version requirements.
+Verify the tools:
 
-## Development Roadmap
+```bash
+docker compose version
+java -version
+mvn -version
+```
 
-### Phase 1 — Product and Architecture
+### 1. Configure the local environment
 
-- Define the product requirements and initial user journeys
-- Complete high-level, low-level, data, and RAG architecture designs
-- Select data providers, model providers, and deployment targets
-- Establish engineering standards, CI checks, and threat modeling
+```bash
+cp docker/.env.example docker/.env
+```
 
-### Phase 2 — Platform Foundation
+The committed values are development-only defaults. `docker/.env` is ignored by Git.
 
-- Scaffold the frontend, backend, and AI services
-- Add authentication, authorization, and user settings
-- Implement database schemas, migrations, and local containers
-- Establish logging, metrics, tracing, tests, and deployment pipelines
+### 2. Start local infrastructure
 
-### Phase 3 — Research MVP
+From the repository root:
 
-- Add company search, market data, fundamentals, and filings
-- Build document ingestion, chunking, embedding, and retrieval
-- Deliver cited conversational research and saved research sessions
-- Introduce automated RAG quality, grounding, and regression evaluations
+```bash
+docker compose --env-file docker/.env up -d
+docker compose --env-file docker/.env ps
+```
 
-### Phase 4 — Portfolio Intelligence
+This starts:
 
-- Add portfolios, holdings, transactions, and watchlists
-- Provide allocation, performance, concentration, and risk analysis
-- Generate portfolio-aware research with clear assumptions and data freshness
-- Add alerts and scheduled research summaries
+- PostgreSQL at `127.0.0.1:5432`
+- Redis at `127.0.0.1:6379`
+- Qdrant HTTP/gRPC at `127.0.0.1:6333/6334`
+- pgAdmin at `http://localhost:5050`
 
-### Phase 5 — Production Readiness
+If an existing PostgreSQL volume was initialized with different credentials and its local data can be discarded:
 
-- Conduct security, privacy, reliability, and cost reviews
-- Add rate limits, audit trails, backups, and disaster recovery
-- Improve accessibility, performance, and mobile responsiveness
-- Run a controlled beta and iterate from user feedback
+```bash
+docker compose --env-file docker/.env down -v
+docker compose --env-file docker/.env up -d
+```
 
-## Security and Responsible Use
+The first command permanently deletes local Compose volumes.
 
-**Never store API keys, access tokens, passwords, private certificates, or other secrets in source code or commit them to version control.**
+See [docker/README.md](docker/README.md) for health checks, persistence, troubleshooting, and authenticated Qdrant access.
 
-- Use environment variables or an approved secrets manager.
-- Commit only sanitized templates such as `.env.example`.
-- Keep local `.env` files and credential artifacts in `.gitignore`.
-- Use separate credentials for development, staging, and production.
-- Apply least-privilege access and rotate credentials regularly.
-- Treat portfolio data, user identity data, and financial documents as sensitive.
-- Validate external data, sanitize uploaded content, and defend RAG workflows against prompt injection.
-- Require source attribution and display data timestamps where financial information may become stale.
+### 3. Run the backend
 
-If a secret is exposed, revoke and rotate it immediately, then remove it from the repository history.
+From `backend/`:
+
+```bash
+mvn spring-boot:run
+```
+
+Flyway applies database migrations automatically, and Hibernate validates the resulting schema.
+
+Verify the service:
+
+```bash
+curl http://localhost:8080/actuator/health
+curl http://localhost:8080/api/v1/companies
+```
+
+OpenAPI endpoints are available during local development:
+
+```text
+http://localhost:8080/swagger-ui.html
+http://localhost:8080/v3/api-docs
+```
+
+### 4. Build and test
+
+```bash
+cd backend
+mvn clean verify
+```
+
+## Kubernetes and Helm
+
+The Helm chart is located at `helm/marketmind-ai`.
+
+```bash
+helm lint ./helm/marketmind-ai
+helm template marketmind ./helm/marketmind-ai
+```
+
+See [kubernetes/README.md](kubernetes/README.md) for local-image loading, Secret handling, persistence, Redis, Ingress, and installation guidance.
 
 ## Documentation
 
-Detailed specifications will live in [`docs/`](docs/):
+- [Product requirements](docs/PRD.md)
+- [High-level design](docs/HLD.md)
+- [Low-level design](docs/LLD.md)
+- [AI and RAG design](docs/AI_RAG_DESIGN.md)
+- [Security baseline](docs/SECURITY.md)
+- [API guidelines](docs/API_GUIDELINES.md)
+- [Coding standards](docs/CODING_STANDARDS.md)
+- [Testing strategy](docs/TESTING_STRATEGY.md)
+- [Development roadmap](docs/ROADMAP.md)
 
-- [`PRD.md`](docs/PRD.md) — product requirements
-- [`HLD.md`](docs/HLD.md) — high-level architecture
-- [`LLD.md`](docs/LLD.md) — low-level design
-- [`AI_RAG_DESIGN.md`](docs/AI_RAG_DESIGN.md) — retrieval and AI system design
-- [`ROADMAP.md`](docs/ROADMAP.md) — delivery milestones and priorities
+## Security
 
-## Disclaimer
+**Never commit API keys, passwords, access tokens, private keys, certificates, or populated `.env` files.**
 
-MarketMind AI is intended for research and educational purposes only. It does not provide financial, investment, tax, or legal advice. Investment decisions involve risk, including the possible loss of principal.
+- Commit only sanitized templates such as `.env.example`.
+- Use environment variables for local overrides.
+- Use an approved secret manager for shared and production environments.
+- Keep databases and model infrastructure off the public network.
+- Rotate any credential exposed in source control, logs, shell history, or tickets.
+- Treat portfolio data, identity data, and financial documents as sensitive.
+
+Local example credentials are predictable development defaults and must never be reused outside an isolated workstation.
+
+## Compliance Disclaimer
+
+MarketMind AI is intended for informational, educational, and research purposes only. It is not registered with the Securities and Exchange Board of India (SEBI) as an investment adviser or research analyst unless explicitly stated otherwise. Nothing in the product constitutes investment advice, an offer, or a solicitation to buy or sell securities. Investments in securities markets are subject to market risks; users should perform independent due diligence and consult a qualified SEBI-registered professional where appropriate.

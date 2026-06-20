@@ -1,2 +1,28 @@
 target/
 .env
+
+# Build outputs
+target/
+backend/target/
+frontend/dist/
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Wrong/generated files
+backend/package-lock.json
+
+# Environment
+.env
+.env.*
+docker/.env
+!.env.example
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/settings.json
+
+# Logs
+*.log

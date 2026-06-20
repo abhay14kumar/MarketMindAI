@@ -49,3 +49,8 @@ management:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  documents:
+    scheduler:
+      enabled: ${ENABLE_DOCUMENT_SCHEDULER:true}
+      fixed-delay: ${DOCUMENT_SCHEDULER_FIXED_DELAY:PT30M}
+      initial-delay: ${DOCUMENT_SCHEDULER_INITIAL_DELAY:PT1M}
