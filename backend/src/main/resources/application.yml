@@ -90,6 +90,15 @@ ai:
     api-key: ${QDRANT_API_KEY:}
     timeout-seconds: ${QDRANT_TIMEOUT_SECONDS:30}
 
+pipeline:
+  document:
+    auto-process-enabled: ${DOCUMENT_PIPELINE_AUTO_PROCESS_ENABLED:true}
+
+discovery:
+  timeout: ${DISCOVERY_TIMEOUT:10s}
+  max-html-bytes: ${DISCOVERY_MAX_HTML_BYTES:2097152}
+  user-agent: ${DISCOVERY_USER_AGENT:Mozilla/5.0 MarketMindAI-Discovery/1.0}
+
 app:
   cors:
     # Temporary local-development origins until authentication is implemented.

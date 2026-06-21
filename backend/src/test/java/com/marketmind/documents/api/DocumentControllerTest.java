@@ -62,6 +62,8 @@ class DocumentControllerTest {
                 new Sha256ChecksumService(),
                 new DefaultVersionManager(catalog, clock),
                 new DocumentDownloadProperties(30, 1),
+                documentId -> {
+                },
                 clock);
         DocumentMapper mapper = new DocumentMapper();
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
@@ -132,7 +134,8 @@ class DocumentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.legacyCode").value("VALIDATION_ERROR"));
     }
 
     @Test

@@ -45,6 +45,8 @@ class DocumentDownloadServiceTest {
                 new Sha256ChecksumService(),
                 new DefaultVersionManager(catalog, clock),
                 new DocumentDownloadProperties(30, 1),
+                documentId -> {
+                },
                 clock);
     }
 
@@ -86,6 +88,8 @@ class DocumentDownloadServiceTest {
                 new Sha256ChecksumService(),
                 new DefaultVersionManager(catalog, clock),
                 new DocumentDownloadProperties(30, 1),
+                documentId -> {
+                },
                 clock);
 
         assertThatThrownBy(() -> failingService.download(command(

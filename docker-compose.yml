@@ -163,6 +163,92 @@ services:
     networks:
       - marketmind
 
+  # Loki is the local log aggregation backend. It stores searchable log chunks
+  # on a named volume and is bound to loopback for workstation-only access.
+  loki:
+    image: "${LOKI_IMAGE:-grafana/loki:3.5.0}"
+    container_name: marketmind-loki
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/loki/local-config.yml
+    ports:
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yml:ro
+      - loki_data:/loki
+    logging: *default-logging
+    cpus: "${LOKI_CPUS:-0.5}"
+    mem_limit: "${LOKI_MEMORY_LIMIT:-512m}"
+    mem_reservation: "${LOKI_MEMORY_RESERVATION:-128m}"
+    pids_limit: 200
+    stop_grace_period: 30s
+    networks:
+      - marketmind
+
+  # Promtail forwards Docker container output and the host-run Spring Boot log
+  # file to Loki. Docker socket access is read-only and local-development only.
+  promtail:
+    image: "${PROMTAIL_IMAGE:-grafana/promtail:3.5.0}"
+    container_name: marketmind-promtail
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - ./backend/logs:/var/log/marketmind/backend:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail_positions:/var/lib/promtail
+    depends_on:
+      loki:
+        condition: service_started
+    logging: *default-logging
+    cpus: "${PROMTAIL_CPUS:-0.25}"
+    mem_limit: "${PROMTAIL_MEMORY_LIMIT:-256m}"
+    mem_reservation: "${PROMTAIL_MEMORY_RESERVATION:-64m}"
+    pids_limit: 100
+    stop_grace_period: 30s
+    networks:
+      - marketmind
+
+  # Grafana provides the local Explore UI. Loki is provisioned automatically,
+  # so no manual datasource configuration is required after startup.
+  grafana:
+    image: "${GRAFANA_IMAGE:-grafana/grafana:12.0.2}"
+    container_name: marketmind-grafana
+    restart: unless-stopped
+    env_file:
+      - ./docker/.env
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:?Set GRAFANA_ADMIN_USER in docker/.env}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in docker/.env}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      TZ: "${TZ:-UTC}"
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      loki:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget --quiet --spider http://127.0.0.1:3000/api/health
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging: *default-logging
+    cpus: "${GRAFANA_CPUS:-0.5}"
+    mem_limit: "${GRAFANA_MEMORY_LIMIT:-512m}"
+    mem_reservation: "${GRAFANA_MEMORY_RESERVATION:-128m}"
+    pids_limit: 200
+    stop_grace_period: 30s
+    networks:
+      - marketmind
+
 volumes:
   postgres_data:
     name: marketmind-postgres-data
@@ -172,6 +258,12 @@ volumes:
     name: marketmind-qdrant-data
   pgadmin_data:
     name: marketmind-pgadmin-data
+  loki_data:
+    name: marketmind-loki-data
+  grafana_data:
+    name: marketmind-grafana-data
+  promtail_positions:
+    name: marketmind-promtail-positions
 
 networks:
   marketmind:

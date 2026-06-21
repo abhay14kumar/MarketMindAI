@@ -1,6 +1,6 @@
 # MarketMind AI Local Infrastructure
 
-This directory supports the repository-root [`docker-compose.yml`](../docker-compose.yml), which provides the local data infrastructure for MarketMind AI.
+This directory supports the repository-root [`docker-compose.yml`](../docker-compose.yml), which provides local data and central logging infrastructure for MarketMind AI.
 
 ## Services
 
@@ -10,6 +10,9 @@ This directory supports the repository-root [`docker-compose.yml`](../docker-com
 | Redis | `redis:7-alpine` | `6379` | `127.0.0.1:6379` | Cache and future job coordination |
 | Qdrant | `qdrant/qdrant:latest` | `6333`, `6334` | `127.0.0.1:6333`, `127.0.0.1:6334` | Vector index |
 | pgAdmin | `dpage/pgadmin4:latest` | `80` | `http://127.0.0.1:5050` | Local PostgreSQL administration |
+| Loki | `grafana/loki` | `3100` | `http://127.0.0.1:3100` | Local log aggregation |
+| Promtail | `grafana/promtail` | `9080` | Not published | Docker/backend log collection |
+| Grafana | `grafana/grafana` | `3000` | `http://127.0.0.1:3000` | Log exploration |
 
 All host bindings use loopback by default. Other containers on the Compose network use service DNS names such as `postgres`, `redis`, and `qdrant`.
 
@@ -68,7 +71,8 @@ Start a clean environment:
 docker compose --env-file docker/.env up -d
 ```
 
-Compose starts PostgreSQL, Redis, and Qdrant independently. pgAdmin starts after PostgreSQL reports healthy.
+Compose starts PostgreSQL, Redis, Qdrant, and Loki independently. pgAdmin
+starts after PostgreSQL reports healthy. Promtail and Grafana start after Loki.
 
 Check status:
 
@@ -118,6 +122,18 @@ curl --fail http://127.0.0.1:5050/misc/ping
 
 If a host port was changed in `docker/.env`, use that value instead.
 
+Grafana:
+
+```bash
+curl --fail http://127.0.0.1:3000/api/health
+```
+
+Loki:
+
+```bash
+curl --fail http://127.0.0.1:3100/ready
+```
+
 ## Application Connection Settings
 
 Applications running directly on the host:
@@ -126,6 +142,8 @@ Applications running directly on the host:
 PostgreSQL: jdbc:postgresql://127.0.0.1:5432/marketmind
 Redis:      redis://:<REDIS_PASSWORD>@127.0.0.1:6379/0
 Qdrant:     http://127.0.0.1:6333
+Grafana:    http://127.0.0.1:3000
+Loki:       http://127.0.0.1:3100
 ```
 
 Applications attached to `marketmind-local-network`:
@@ -175,6 +193,9 @@ Named volumes:
 - `marketmind-redis-data`
 - `marketmind-qdrant-data`
 - `marketmind-pgadmin-data`
+- `marketmind-loki-data`
+- `marketmind-grafana-data`
+- `marketmind-promtail-positions`
 
 List them:
 
@@ -218,9 +239,16 @@ docker compose --env-file docker/.env logs -f postgres
 docker compose --env-file docker/.env logs -f redis
 docker compose --env-file docker/.env logs -f qdrant
 docker compose --env-file docker/.env logs -f pgadmin
+docker compose --env-file docker/.env logs -f loki
+docker compose --env-file docker/.env logs -f promtail
+docker compose --env-file docker/.env logs -f grafana
 ```
 
 PostgreSQL writes operational logs to standard error so Docker rotation applies.
+Promtail additionally forwards Compose logs and
+`backend/logs/marketmind-backend.log` to Loki. See
+[`../monitoring/README.md`](../monitoring/README.md) for queries and backend
+setup.
 
 ## Resource Controls
 
@@ -232,6 +260,9 @@ Current defaults reserve approximately:
 - Redis: 0.5 CPU / 512 MiB limit
 - Qdrant: 1 CPU / 1 GiB limit
 - pgAdmin: 0.5 CPU / 512 MiB limit
+- Loki: 0.5 CPU / 512 MiB limit
+- Promtail: 0.25 CPU / 256 MiB limit
+- Grafana: 0.5 CPU / 512 MiB limit
 
 Resource limits protect the workstation; they are not production sizing recommendations.
 

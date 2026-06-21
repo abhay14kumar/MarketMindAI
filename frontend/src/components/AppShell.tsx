@@ -13,6 +13,8 @@ import {
   SettingsRounded,
   ScheduleRounded,
   WorkHistoryRounded,
+  AccountTreeRounded,
+  TravelExploreRounded,
   VisibilityRounded,
 } from '@mui/icons-material';
 import {
@@ -47,8 +49,10 @@ const navItems = [
   { label: 'Company Intelligence', path: '/company-intelligence', icon: BusinessRounded },
   { label: 'AI Research Assistant', path: '/research', icon: AutoAwesomeRounded },
   { label: 'Sources', path: '/sources', icon: DnsRounded },
+  { label: 'Discovery', path: '/discovery', icon: TravelExploreRounded },
   { label: 'Documents', path: '/documents', icon: DescriptionRounded },
   { label: 'Download Jobs', path: '/document-jobs', icon: WorkHistoryRounded },
+  { label: 'Pipeline Monitor', path: '/pipeline', icon: AccountTreeRounded },
   { label: 'Scheduler', path: '/scheduler', icon: ScheduleRounded },
   { label: 'Alerts', path: '/alerts', icon: NotificationsRounded },
   { label: 'Settings', path: '/settings', icon: SettingsRounded },

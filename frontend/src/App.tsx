@@ -40,6 +40,16 @@ const DocumentJobsPage = lazy(() =>
 const SchedulerPage = lazy(() =>
   import('./pages/SchedulerPage').then((module) => ({ default: module.SchedulerPage })),
 );
+const PipelineMonitorPage = lazy(() =>
+  import('./pages/PipelineMonitorPage').then((module) => ({
+    default: module.PipelineMonitorPage,
+  })),
+);
+const DiscoveryPage = lazy(() =>
+  import('./pages/DiscoveryPage').then((module) => ({
+    default: module.DiscoveryPage,
+  })),
+);
 const AlertsPage = lazy(() =>
   import('./pages/AlertsPage').then((module) => ({ default: module.AlertsPage })),
 );
@@ -73,6 +83,8 @@ export default function App() {
           <Route path="sources" element={<SourcesPage />} />
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="document-jobs" element={<DocumentJobsPage />} />
+          <Route path="pipeline" element={<PipelineMonitorPage />} />
+          <Route path="discovery" element={<DiscoveryPage />} />
           <Route path="scheduler" element={<SchedulerPage />} />
           <Route path="alerts" element={<AlertsPage />} />
           <Route path="settings" element={<SettingsPage />} />

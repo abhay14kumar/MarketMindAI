@@ -18,6 +18,7 @@ import com.marketmind.ai.application.RagProperties;
 import com.marketmind.ai.application.VectorSearchResult;
 import com.marketmind.ai.application.VectorStore;
 import com.marketmind.ai.domain.DocumentChunk;
+import com.marketmind.common.exception.ErrorCode;
 
 import org.springframework.stereotype.Component;
 
@@ -124,7 +125,8 @@ public class QdrantVectorStore implements VectorStore {
             }
             return List.copyOf(matches);
         } catch (IOException | IllegalArgumentException exception) {
-            throw new AiInfrastructureException("Qdrant returned an invalid query response.", exception);
+            throw qdrantFailure(
+                    "Qdrant returned an invalid query response.", exception);
         }
     }
 
@@ -148,18 +150,28 @@ public class QdrantVectorStore implements VectorStore {
             return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new AiInfrastructureException("Qdrant request was interrupted.", exception);
+            throw qdrantFailure("Qdrant request was interrupted.", exception);
         } catch (IOException exception) {
-            throw new AiInfrastructureException("Qdrant is unavailable.", exception);
+            throw qdrantFailure("Qdrant is unavailable.", exception);
         }
     }
 
     private AiInfrastructureException failure(
             HttpResponse<String> response,
             String operation) {
+        return qdrantFailure("Unable to " + operation + " in Qdrant (HTTP "
+                + response.statusCode() + ").");
+    }
+
+    private AiInfrastructureException qdrantFailure(String message) {
+        return new AiInfrastructureException(ErrorCode.QDRANT_FAILURE, message);
+    }
+
+    private AiInfrastructureException qdrantFailure(
+            String message,
+            Throwable cause) {
         return new AiInfrastructureException(
-                "Unable to " + operation + " in Qdrant (HTTP "
-                        + response.statusCode() + ").");
+                ErrorCode.QDRANT_FAILURE, message, cause);
     }
 
     private String trim(String value) {

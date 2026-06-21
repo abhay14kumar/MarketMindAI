@@ -170,14 +170,17 @@ Use a problem-details-compatible response:
 
 ```json
 {
-  "type": "https://docs.marketmind.local/problems/validation-error",
+  "type": "https://docs.marketmind.local/problems/validation-failed",
   "title": "Request validation failed",
   "status": 422,
-  "code": "VALIDATION_ERROR",
+  "code": "VALIDATION_FAILED",
+  "legacyCode": "VALIDATION_ERROR",
   "detail": "One or more fields are invalid.",
   "instance": "/api/v1/portfolios",
   "correlationId": "correlation-id",
-  "errors": [
+  "requestId": "correlation-id",
+  "timestamp": "2026-06-21T07:00:00Z",
+  "fieldErrors": [
     {
       "field": "baseCurrency",
       "code": "UNSUPPORTED_CURRENCY",
@@ -190,9 +193,34 @@ Use a problem-details-compatible response:
 Rules:
 
 - Error codes are stable and machine-readable.
+- `correlationId` and `requestId` currently identify the same request and are
+  both returned for client and infrastructure interoperability.
+- Validation failures return field-level `fieldErrors`; the legacy `errors`
+  property is temporarily retained as a compatibility alias. Request-wide
+  failures may use `_request` as the field.
+- Malformed JSON, unsupported enum values, missing multipart parts, upload
+  limits, external providers, Qdrant, and Ollama use distinct error codes.
 - Messages are safe for users and do not include stack traces, queries, prompts, secrets, or provider credentials.
 - Authorization failures do not reveal whether another user's resource exists.
 - Internal upstream details are logged safely and mapped to a controlled public error.
+
+Stable domain codes currently include:
+
+| Code | Meaning |
+|---|---|
+| `INVALID_REQUEST` | Malformed input, missing parameters, or unsupported upload |
+| `VALIDATION_FAILED` | One or more semantic or field constraints failed |
+| `INVALID_ENUM_VALUE` | Enum input is unsupported; allowed values are returned |
+| `RESOURCE_NOT_FOUND` | Requested resource does not exist |
+| `DUPLICATE_RESOURCE` | A unique resource or equivalent record already exists |
+| `EXTERNAL_SERVICE_FAILURE` | A remote data provider failed |
+| `QDRANT_FAILURE` | Vector storage or retrieval failed |
+| `OLLAMA_FAILURE` | Local model inference or embedding failed |
+| `DOCUMENT_DOWNLOAD_FAILED` | Document acquisition failed |
+| `DOCUMENT_EXTRACTION_FAILED` | Text extraction failed |
+| `EMBEDDING_FAILED` | Document or query embedding failed |
+
+Legacy internal codes may temporarily appear as `legacyCode` during migration.
 
 ## 11. Authentication and Authorization
 
@@ -239,6 +267,13 @@ It must not expose hidden chain-of-thought. Concise structured rationale and evi
 ## 15. Logging and Observability
 
 - Accept or generate a correlation ID; do not trust arbitrary client values without validation.
+- Accept `X-Correlation-Id` and `X-Request-ID`; return both headers using the
+  canonical correlation value.
+- Add the canonical ID to MDC as `correlationId` and `requestId`, and clear MDC
+  after every request to prevent thread-pool leakage.
+- Keep local logs human-readable with correlation ID, method, path, status,
+  and duration. A structured encoder may be enabled later without changing
+  application log calls.
 - Propagate trace context to internal calls.
 - Log route templates rather than sensitive URL values where practical.
 - Do not log authorization headers, cookies, secrets, full prompts, raw portfolio data, or full documents by default.

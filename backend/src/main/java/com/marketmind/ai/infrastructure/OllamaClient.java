@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marketmind.ai.application.ChatClient;
 import com.marketmind.ai.application.EmbeddingClient;
+import com.marketmind.common.exception.ErrorCode;
 
 import org.springframework.stereotype.Component;
 
@@ -41,7 +42,7 @@ public class OllamaClient implements EmbeddingClient, ChatClient {
                 "input", text));
         JsonNode values = response.path("embeddings").path(0);
         if (!values.isArray() || values.isEmpty()) {
-            throw new AiInfrastructureException("Ollama returned no embedding vector.");
+            throw ollamaFailure("Ollama returned no embedding vector.");
         }
         return java.util.stream.StreamSupport.stream(values.spliterator(), false)
                 .map(JsonNode::doubleValue)
@@ -65,7 +66,7 @@ public class OllamaClient implements EmbeddingClient, ChatClient {
                                 "Context:\n" + groundedContext + "\n\nQuestion:\n" + question))));
         String content = response.path("message").path("content").asText("");
         if (content.isBlank()) {
-            throw new AiInfrastructureException("Ollama returned an empty answer.");
+            throw ollamaFailure("Ollama returned an empty answer.");
         }
         return content;
     }
@@ -83,16 +84,27 @@ public class OllamaClient implements EmbeddingClient, ChatClient {
             HttpResponse<String> response = httpClient.send(
                     request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new AiInfrastructureException(
+                throw ollamaFailure(
                         "Ollama returned HTTP " + response.statusCode() + ".");
             }
             return objectMapper.readTree(response.body());
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new AiInfrastructureException("Ollama request was interrupted.", exception);
+            throw ollamaFailure("Ollama request was interrupted.", exception);
         } catch (IOException exception) {
-            throw new AiInfrastructureException("Ollama is unavailable.", exception);
+            throw ollamaFailure("Ollama is unavailable.", exception);
         }
+    }
+
+    private AiInfrastructureException ollamaFailure(String message) {
+        return new AiInfrastructureException(ErrorCode.OLLAMA_FAILURE, message);
+    }
+
+    private AiInfrastructureException ollamaFailure(
+            String message,
+            Throwable cause) {
+        return new AiInfrastructureException(
+                ErrorCode.OLLAMA_FAILURE, message, cause);
     }
 
     private String trim(String value) {

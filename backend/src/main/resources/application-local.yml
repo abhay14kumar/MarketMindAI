@@ -1,0 +1,3 @@
+logging:
+  file:
+    name: ${BACKEND_LOG_FILE:logs/marketmind-backend.log}

@@ -266,3 +266,64 @@ export interface DocumentChunk {
   qdrantPointId: string | null;
   createdAt: string;
 }
+
+export interface PipelineStep {
+  id: string;
+  stepName: 'DOWNLOAD' | 'TEXT_EXTRACTION' | 'CHUNKING' | 'EMBEDDING' | 'AI_READY';
+  status: 'STARTED' | 'COMPLETED' | 'FAILED' | 'SKIPPED' | 'PARTIAL';
+  startedAt: string;
+  completedAt: string | null;
+  errorMessage: string | null;
+  retryCount: number;
+}
+
+export interface PipelineRun {
+  id: string;
+  documentId: string;
+  documentTitle: string;
+  status: 'STARTED' | 'COMPLETED' | 'FAILED' | 'SKIPPED' | 'PARTIAL';
+  currentStep: PipelineStep['stepName'];
+  startedAt: string;
+  completedAt: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  steps: PipelineStep[];
+}
+
+export interface DiscoveryRunRequest {
+  sourceType: 'TEST_SOURCE' | 'NSE' | 'BSE' | 'SEBI' | 'RBI' | 'COMPANY_IR';
+  sourceUrl?: string;
+  companySymbol?: string;
+  maxDocuments: number;
+}
+
+export interface DiscoveryJob {
+  discoveryJobId: string;
+  sourceType: string;
+  sourceUrl: string | null;
+  status: string;
+  totalDiscovered: number;
+  newDocuments: number;
+  existingDocuments: number;
+  failedSources: number;
+  errorMessage: string | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+export interface DiscoveredDocument {
+  id: string;
+  sourceType: string;
+  sourceUrl: string | null;
+  documentUrl: string;
+  title: string;
+  companySymbol: string | null;
+  documentType: string;
+  status: string;
+  normalizedUrl: string;
+  firstDiscoveredAt: string;
+  lastSeenAt: string;
+  seenCount: number;
+  createdAt: string;
+  updatedAt: string;
+}

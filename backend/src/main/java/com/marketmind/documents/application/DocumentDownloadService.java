@@ -21,10 +21,14 @@ import com.marketmind.documents.domain.DocumentStatus;
 import com.marketmind.documents.domain.DocumentVersion;
 import com.marketmind.documents.domain.DownloadJob;
 import com.marketmind.documents.domain.DownloadStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class DocumentDownloadService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(DocumentDownloadService.class);
 
     private final DocumentCatalog documentCatalog;
     private final Downloader downloader;
@@ -32,6 +36,7 @@ public class DocumentDownloadService {
     private final ChecksumService checksumService;
     private final VersionManager versionManager;
     private final DocumentDownloadPolicy downloadPolicy;
+    private final DocumentProcessingTrigger processingTrigger;
     private final Clock clock;
 
     public DocumentDownloadService(
@@ -41,6 +46,7 @@ public class DocumentDownloadService {
             ChecksumService checksumService,
             VersionManager versionManager,
             DocumentDownloadPolicy downloadPolicy,
+            DocumentProcessingTrigger processingTrigger,
             Clock clock) {
         this.documentCatalog = documentCatalog;
         this.downloader = downloader;
@@ -48,6 +54,7 @@ public class DocumentDownloadService {
         this.checksumService = checksumService;
         this.versionManager = versionManager;
         this.downloadPolicy = downloadPolicy;
+        this.processingTrigger = processingTrigger;
         this.clock = clock;
     }
 
@@ -130,7 +137,10 @@ public class DocumentDownloadService {
                         null,
                         null,
                         null));
-                return new DocumentDownloadResult(completedJob, completed, version);
+                DocumentDownloadResult result =
+                        new DocumentDownloadResult(completedJob, completed, version);
+                triggerProcessing(completed.id());
+                return result;
             }
         } catch (ApiException exception) {
             failJob(startedJob, exception.getErrorCode().name(), exception.getMessage());
@@ -145,6 +155,17 @@ public class DocumentDownloadService {
                     "The document acquisition failed.", exception);
         } finally {
             deleteTemporaryFile(downloaded);
+        }
+    }
+
+    private void triggerProcessing(UUID documentId) {
+        try {
+            processingTrigger.documentDownloaded(documentId);
+        } catch (RuntimeException exception) {
+            LOGGER.error(
+                    "Unable to submit document {} for automated processing",
+                    documentId,
+                    exception);
         }
     }
 

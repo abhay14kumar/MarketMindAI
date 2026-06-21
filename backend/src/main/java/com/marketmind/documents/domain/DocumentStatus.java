@@ -6,6 +6,7 @@ public enum DocumentStatus {
     ACQUIRED,
     PARSED,
     COMPLETED,
+    AI_READY,
     FAILED,
     ARCHIVED
 }

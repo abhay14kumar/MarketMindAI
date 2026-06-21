@@ -104,10 +104,13 @@ docker compose --env-file ../docker/.env up -d
 Then start Spring Boot:
 
 ```bash
+export SPRING_PROFILES_ACTIVE=local
 mvn spring-boot:run
 ```
 
 Flyway applies migrations from `src/main/resources/db/migration` during startup. Hibernate validates the migrated schema and does not create or update tables.
+The local profile also writes the rolling file
+`logs/marketmind-backend.log` for Promtail collection.
 
 Verify database-backed application health:
 
@@ -442,19 +445,127 @@ Expected application response:
 }
 ```
 
+## Request Correlation and Structured Errors
+
+Every HTTP request accepts `X-Correlation-Id` or the compatibility alias
+`X-Request-ID`. Safe caller
+values are reused; missing or unsafe values are replaced with a generated UUID.
+Both headers are returned on the response.
+
+```bash
+curl -i \
+  -H 'X-Correlation-Id: local-validation-001' \
+  http://localhost:8080/actuator/health
+```
+
+The correlation ID is stored in SLF4J MDC for the request lifetime and appears
+in the human-readable console pattern. Request logs include method, path,
+status, duration, and correlation ID without request bodies, file contents, or
+portfolio values:
+
+```text
+2026-06-21T07:00:00.000Z INFO [http-nio-8080-exec-1]
+[correlationId=local-validation-001] CorrelationIdFilter -
+HTTP request completed httpMethod="GET" httpPath="/actuator/health"
+httpStatus="200" durationMs="12"
+```
+
+With `SPRING_PROFILES_ACTIVE=local`, the same logs are written to the rolling
+file `logs/marketmind-backend.log`. The repository Promtail service collects
+that file for Loki. See [monitoring/README.md](../monitoring/README.md).
+
+API failures use RFC 9457 problem details with stable error codes:
+
+```json
+{
+  "type": "https://docs.marketmind.local/problems/validation-failed",
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "One or more fields are invalid.",
+  "instance": "/api/v1/companies",
+  "code": "VALIDATION_FAILED",
+  "legacyCode": "VALIDATION_ERROR",
+  "correlationId": "local-validation-001",
+  "requestId": "local-validation-001",
+  "timestamp": "2026-06-21T07:00:00Z",
+  "fieldErrors": [
+    {
+      "field": "companyName",
+      "code": "NotBlank",
+      "message": "Company name is required."
+    }
+  ]
+}
+```
+
+The legacy `errors` array remains as a temporary compatibility alias for
+`fieldErrors`.
+
+Malformed JSON, enum conversion, multipart failures, upload limits, external
+provider failures, and Qdrant/Ollama outages have distinct machine-readable
+codes. Dependency details and stack traces remain in server logs and are not
+returned to clients.
+
+To trace a request, search logs for the response's `X-Correlation-Id` value.
+The console pattern can be overridden with `CONSOLE_LOG_PATTERN`; JSON logging
+can later be introduced by replacing the Logback encoder without application
+code changes.
+
+## Automated Document Processing
+
+Successful document downloads can automatically run PDF text extraction,
+chunking, Ollama embedding, Qdrant indexing, and the final `AI_READY` state.
+The feature is enabled by default and can be controlled with:
+
+```bash
+export DOCUMENT_PIPELINE_AUTO_PROCESS_ENABLED=true
+```
+
+Pipeline operations are available at:
+
+- `GET /api/v1/pipeline/runs`
+- `GET /api/v1/pipeline/runs/{id}`
+- `GET /api/v1/pipeline/documents/{documentId}`
+- `POST /api/v1/pipeline/documents/{documentId}/retry`
+
+Manual extraction and embedding endpoints remain available. A failed automated
+step is recorded without rolling back a successfully downloaded document.
+
+## Document Discovery
+
+The discovery engine scans trusted public HTML sources for PDF links and stores
+only classified metadata. It does not download, extract, embed, or ingest any
+discovered document.
+
+Configuration:
+
+```bash
+export DISCOVERY_TIMEOUT='10s'
+export DISCOVERY_MAX_HTML_BYTES='2097152'
+export DISCOVERY_USER_AGENT='Mozilla/5.0 MarketMindAI-Discovery/1.0'
+```
+
+Use `POST /api/v1/discovery/run` with `TEST_SOURCE` for deterministic local
+testing or `COMPANY_IR` with a public `sourceUrl` for generic HTML discovery.
+NSE, BSE, SEBI, and RBI currently use the same generic crawler; source-specific
+scrapers are intentionally deferred.
+
 ## Package Structure
 
 ```text
 src/main/java/com/marketmind/
 ├── MarketMindApplication.java
 ├── common/
-│   └── exception/
+│   ├── exception/
+│   └── observability/
 ├── config/
 ├── ai/
 ├── company/
 ├── documents/
+├── discovery/
 ├── marketdata/
 ├── portfolio/
+├── pipeline/
 ├── scheduler/
 └── health/
     └── adapter/in/web/

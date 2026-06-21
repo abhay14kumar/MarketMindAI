@@ -27,6 +27,10 @@ import type {
   AiAskRequest,
   DocumentChunk,
   EmbeddingJob,
+  PipelineRun,
+  DiscoveryRunRequest,
+  DiscoveryJob,
+  DiscoveredDocument,
 } from './types';
 
 const API_BASE_URL = (import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8080').replace(/\/$/, '');
@@ -172,4 +176,44 @@ export const aiQueries = {
   chunks: (documentId: string) =>
     request<DocumentChunk[]>(`/api/v1/ai/documents/${documentId}/chunks`),
   answers: () => request<AiAnswer[]>('/api/v1/ai/answers'),
+};
+
+export const pipelineQueries = {
+  runs: (page = 0, size = 100) =>
+    request<PageResponse<PipelineRun>>(`/api/v1/pipeline/runs?page=${page}&size=${size}`),
+  run: (runId: string) =>
+    request<PipelineRun>(`/api/v1/pipeline/runs/${runId}`),
+  document: (documentId: string) =>
+    request<PipelineRun>(`/api/v1/pipeline/documents/${documentId}`),
+  retry: (documentId: string) =>
+    request<PipelineRun>(`/api/v1/pipeline/documents/${documentId}/retry`, {
+      method: 'POST',
+    }),
+};
+
+export const discoveryQueries = {
+  run: (payload: DiscoveryRunRequest) =>
+    request<DiscoveryJob>('/api/v1/discovery/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  jobs: (page = 0, size = 100) =>
+    request<PageResponse<DiscoveryJob>>(
+      `/api/v1/discovery/jobs?page=${page}&size=${size}`,
+    ),
+  documents: (page = 0, size = 100) =>
+    request<PageResponse<DiscoveredDocument>>(
+      `/api/v1/discovery/documents?page=${page}&size=${size}`,
+    ),
+  ignore: (documentId: string) =>
+    request<DiscoveredDocument>(
+      `/api/v1/discovery/documents/${documentId}/ignore`,
+      { method: 'POST' },
+    ),
+  markExisting: (documentId: string) =>
+    request<DiscoveredDocument>(
+      `/api/v1/discovery/documents/${documentId}/mark-existing`,
+      { method: 'POST' },
+    ),
 };

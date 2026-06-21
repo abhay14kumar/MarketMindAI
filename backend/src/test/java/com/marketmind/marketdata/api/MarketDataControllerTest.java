@@ -59,7 +59,8 @@ class MarketDataControllerTest {
     void shouldRejectInvalidSymbol() throws Exception {
         mockMvc.perform(get("/api/v1/market/prices/INVALID_SYMBOL"))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.legacyCode").value("VALIDATION_ERROR"));
     }
 
     @Test

@@ -60,7 +60,8 @@ class PortfolioControllerTest {
 
         mockMvc.perform(multipart("/api/v1/portfolio/import").file(file))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.legacyCode").value("BAD_REQUEST"));
     }
 
     private static final class StubPortfolioService extends PortfolioService {

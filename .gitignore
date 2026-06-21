@@ -40,4 +40,7 @@ data/
 
 # Local runtime logs
 logs/
+backend/logs/
+!backend/logs/
+!backend/logs/.gitkeep
 *.log
