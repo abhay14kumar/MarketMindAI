@@ -4,12 +4,15 @@ import {
   BusinessRounded,
   DashboardRounded,
   DescriptionRounded,
+  DnsRounded,
   InsightsRounded,
   MenuRounded,
   NotificationsRounded,
   PieChartRounded,
   SearchRounded,
   SettingsRounded,
+  ScheduleRounded,
+  WorkHistoryRounded,
   VisibilityRounded,
 } from '@mui/icons-material';
 import {
@@ -43,7 +46,10 @@ const navItems = [
   { label: 'Watchlist', path: '/watchlist', icon: VisibilityRounded },
   { label: 'Company Intelligence', path: '/company-intelligence', icon: BusinessRounded },
   { label: 'AI Research Assistant', path: '/research', icon: AutoAwesomeRounded },
+  { label: 'Sources', path: '/sources', icon: DnsRounded },
   { label: 'Documents', path: '/documents', icon: DescriptionRounded },
+  { label: 'Download Jobs', path: '/document-jobs', icon: WorkHistoryRounded },
+  { label: 'Scheduler', path: '/scheduler', icon: ScheduleRounded },
   { label: 'Alerts', path: '/alerts', icon: NotificationsRounded },
   { label: 'Settings', path: '/settings', icon: SettingsRounded },
 ];
@@ -116,8 +122,8 @@ export function AppShell() {
             <Typography variant="overline" color="primary.main">Data status</Typography>
             <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: 'primary.main', boxShadow: '0 0 12px #54d6c2' }} />
           </Stack>
-          <Typography variant="body2" sx={{ mt: 0.5 }}>Mock market feed</Typography>
-          <Typography variant="caption" color="text.secondary">Updated 19 Jun, 12:32 IST</Typography>
+          <Typography variant="body2" sx={{ mt: 0.5 }}>Backend API enabled</Typography>
+          <Typography variant="caption" color="text.secondary">Fallback data available offline</Typography>
         </Box>
       </Box>
     </Box>

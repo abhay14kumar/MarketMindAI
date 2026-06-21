@@ -1,6 +1,7 @@
 package com.marketmind.sources.infrastructure;
 
 import java.net.URI;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -13,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.marketmind.sources.application.SourceRegistryRepository;
 import com.marketmind.sources.domain.AuthenticationType;
+import com.marketmind.sources.domain.CapabilityStatus;
 import com.marketmind.sources.domain.CapabilityType;
 import com.marketmind.sources.domain.RefreshFrequency;
 import com.marketmind.sources.domain.SourceCapability;
@@ -69,6 +71,11 @@ public class InMemorySourceRegistryRepository implements SourceRegistryRepositor
                 RefreshFrequency.MINUTELY, "https://www.alphavantage.co",
                 Set.of(CapabilityType.MARKET_PRICES, CapabilityType.COMPANY_MASTER,
                         CapabilityType.FINANCIAL_STATEMENTS));
+        seed("71000000-0000-0000-0000-000000000009", "W3C_TEST", "W3C Test Source",
+                SourceType.TEST_SOURCE, AuthenticationType.NONE,
+                RefreshFrequency.ON_DEMAND, "https://www.w3.org",
+                Set.of(CapabilityType.HTTP_REACHABILITY, CapabilityType.ROBOTS_TXT,
+                        CapabilityType.PDF_DOWNLOAD));
     }
 
     @Override
@@ -149,15 +156,24 @@ public class InMemorySourceRegistryRepository implements SourceRegistryRepositor
                 sourceId,
                 code,
                 name,
+                code.equals("W3C_TEST") ? "World Wide Web Consortium" : name,
                 "Default MarketMind AI source registry entry.",
                 type,
                 SourceStatus.ACTIVE,
                 authenticationType,
                 frequency,
                 URI.create(baseUrl),
+                URI.create(baseUrl + "/robots.txt"),
                 URI.create(baseUrl),
+                code.equals("W3C_TEST")
+                        ? URI.create("https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")
+                        : null,
                 supportedCapabilities,
                 true,
+                code.equals("W3C_TEST") ? 100 : 50,
+                code.equals("W3C_TEST")
+                        ? new BigDecimal("0.9900")
+                        : new BigDecimal("0.9000"),
                 SEED_TIME,
                 SEED_TIME);
         sources.put(sourceId, source);
@@ -179,6 +195,12 @@ public class InMemorySourceRegistryRepository implements SourceRegistryRepositor
                 true,
                 100 + Math.abs(code.hashCode() % 400),
                 "Mock source is available.",
+                SEED_TIME,
+                200,
+                100L,
+                true,
+                200,
+                CapabilityStatus.UNKNOWN,
                 SEED_TIME,
                 SEED_TIME);
         health.put(sourceHealth.id(), sourceHealth);

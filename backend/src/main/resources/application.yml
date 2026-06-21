@@ -26,6 +26,10 @@ spring:
           time_zone: UTC
   jackson:
     time-zone: UTC
+  servlet:
+    multipart:
+      max-file-size: ${PORTFOLIO_IMPORT_MAX_FILE_SIZE:10MB}
+      max-request-size: ${PORTFOLIO_IMPORT_MAX_REQUEST_SIZE:10MB}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -53,9 +57,44 @@ document:
     timeout-seconds: ${DOCUMENT_DOWNLOAD_TIMEOUT_SECONDS:30}
     max-file-size-mb: ${DOCUMENT_DOWNLOAD_MAX_FILE_SIZE_MB:50}
 
+source:
+  validation:
+    connect-timeout-seconds: ${SOURCE_VALIDATION_CONNECT_TIMEOUT_SECONDS:10}
+    read-timeout-seconds: ${SOURCE_VALIDATION_READ_TIMEOUT_SECONDS:15}
+    max-pdf-test-size-mb: ${SOURCE_VALIDATION_MAX_PDF_TEST_SIZE_MB:10}
+    user-agent: ${SOURCE_VALIDATION_USER_AGENT:MarketMindAI-SourceValidator/1.0}
+
+market:
+  price:
+    provider: ${MARKET_PRICE_PROVIDER:PUBLIC}
+    refresh:
+      enabled: ${MARKET_PRICE_REFRESH_ENABLED:false}
+      interval-seconds: ${MARKET_PRICE_REFRESH_INTERVAL_SECONDS:60}
+    provider-settings:
+      timeout-seconds: ${MARKET_PRICE_PROVIDER_TIMEOUT_SECONDS:10}
+      base-url: ${MARKET_PRICE_PROVIDER_BASE_URL:https://query2.finance.yahoo.com}
+
+ai:
+  rag:
+    chunk-size: ${CHUNK_SIZE:1000}
+    chunk-overlap: ${CHUNK_OVERLAP:200}
+    default-top-k: ${TOP_K_RESULTS:5}
+    collection-name: ${QDRANT_COLLECTION:marketmind_documents}
+  ollama:
+    base-url: ${OLLAMA_HOST:http://localhost:11434}
+    embedding-model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
+    chat-model: ${OLLAMA_CHAT_MODEL:llama3.1}
+    timeout-seconds: ${OLLAMA_TIMEOUT_SECONDS:60}
+  qdrant:
+    base-url: ${QDRANT_URL:http://localhost:6333}
+    api-key: ${QDRANT_API_KEY:}
+    timeout-seconds: ${QDRANT_TIMEOUT_SECONDS:30}
+
 app:
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    # Temporary local-development origins until authentication is implemented.
+    # Override with CORS_ALLOWED_ORIGINS in shared or deployed environments.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5175}
   documents:
     scheduler:
       enabled: ${ENABLE_DOCUMENT_SCHEDULER:true}

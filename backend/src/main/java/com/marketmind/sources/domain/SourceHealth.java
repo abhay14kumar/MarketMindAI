@@ -11,5 +11,11 @@ public record SourceHealth(
         long latencyMs,
         String message,
         Instant checkedAt,
+        Integer lastHttpStatus,
+        Long lastLatencyMs,
+        Boolean robotsTxtAvailable,
+        Integer robotsTxtStatus,
+        CapabilityStatus pdfCapabilityStatus,
+        Instant lastValidatedAt,
         Instant createdAt) {
 }

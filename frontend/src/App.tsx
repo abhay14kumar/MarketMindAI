@@ -9,6 +9,12 @@ const DashboardPage = lazy(() =>
 const PortfolioPage = lazy(() =>
   import('./pages/PortfolioPage').then((module) => ({ default: module.PortfolioPage })),
 );
+const PortfolioImportPage = lazy(() =>
+  import('./pages/PortfolioImportPage').then((module) => ({ default: module.PortfolioImportPage })),
+);
+const PortfolioImportHistoryPage = lazy(() =>
+  import('./pages/PortfolioImportHistoryPage').then((module) => ({ default: module.PortfolioImportHistoryPage })),
+);
 const WatchlistPage = lazy(() =>
   import('./pages/WatchlistPage').then((module) => ({ default: module.WatchlistPage })),
 );
@@ -24,6 +30,15 @@ const ResearchAssistantPage = lazy(() =>
 );
 const DocumentsPage = lazy(() =>
   import('./pages/DocumentsPage').then((module) => ({ default: module.DocumentsPage })),
+);
+const SourcesPage = lazy(() =>
+  import('./pages/SourcesPage').then((module) => ({ default: module.SourcesPage })),
+);
+const DocumentJobsPage = lazy(() =>
+  import('./pages/DocumentJobsPage').then((module) => ({ default: module.DocumentJobsPage })),
+);
+const SchedulerPage = lazy(() =>
+  import('./pages/SchedulerPage').then((module) => ({ default: module.SchedulerPage })),
 );
 const AlertsPage = lazy(() =>
   import('./pages/AlertsPage').then((module) => ({ default: module.AlertsPage })),
@@ -50,10 +65,15 @@ export default function App() {
         <Route element={<AppShell />}>
           <Route index element={<DashboardPage />} />
           <Route path="portfolio" element={<PortfolioPage />} />
+          <Route path="portfolio/import" element={<PortfolioImportPage />} />
+          <Route path="portfolio/import-history" element={<PortfolioImportHistoryPage />} />
           <Route path="watchlist" element={<WatchlistPage />} />
           <Route path="company-intelligence" element={<CompanyIntelligencePage />} />
           <Route path="research" element={<ResearchAssistantPage />} />
+          <Route path="sources" element={<SourcesPage />} />
           <Route path="documents" element={<DocumentsPage />} />
+          <Route path="document-jobs" element={<DocumentJobsPage />} />
+          <Route path="scheduler" element={<SchedulerPage />} />
           <Route path="alerts" element={<AlertsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFoundPage />} />

@@ -27,3 +27,4 @@ docker/.env
 
 # Logs
 *.log
+datasets/sample/*.xlsx

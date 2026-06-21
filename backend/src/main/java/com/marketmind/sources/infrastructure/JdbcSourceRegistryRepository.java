@@ -15,6 +15,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marketmind.sources.application.SourceRegistryRepository;
 import com.marketmind.sources.domain.AuthenticationType;
+import com.marketmind.sources.domain.CapabilityStatus;
 import com.marketmind.sources.domain.CapabilityType;
 import com.marketmind.sources.domain.RefreshFrequency;
 import com.marketmind.sources.domain.SourceCapability;
@@ -34,7 +35,8 @@ public class JdbcSourceRegistryRepository implements SourceRegistryRepository {
 
     private static final String SOURCE_COLUMNS = """
             id, code, name, description, source_type, status, authentication_type,
-            refresh_frequency, base_url, documentation_url, enabled, created_at, updated_at
+            organization, refresh_frequency, base_url, robots_url, documentation_url,
+            sample_pdf_url, enabled, priority, reliability_score, created_at, updated_at
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -85,33 +87,45 @@ public class JdbcSourceRegistryRepository implements SourceRegistryRepository {
         jdbcTemplate.update(
                 """
                 INSERT INTO source_registry (
-                    id, code, name, description, source_type, status, authentication_type,
-                    refresh_frequency, base_url, documentation_url, enabled, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, code, name, organization, description, source_type, status,
+                    authentication_type, refresh_frequency, base_url, robots_url,
+                    documentation_url, sample_pdf_url, enabled, priority,
+                    reliability_score, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (id) DO UPDATE SET
                     code = EXCLUDED.code,
                     name = EXCLUDED.name,
+                    organization = EXCLUDED.organization,
                     description = EXCLUDED.description,
                     source_type = EXCLUDED.source_type,
                     status = EXCLUDED.status,
                     authentication_type = EXCLUDED.authentication_type,
                     refresh_frequency = EXCLUDED.refresh_frequency,
                     base_url = EXCLUDED.base_url,
+                    robots_url = EXCLUDED.robots_url,
                     documentation_url = EXCLUDED.documentation_url,
+                    sample_pdf_url = EXCLUDED.sample_pdf_url,
                     enabled = EXCLUDED.enabled,
+                    priority = EXCLUDED.priority,
+                    reliability_score = EXCLUDED.reliability_score,
                     updated_at = EXCLUDED.updated_at
                 """,
                 source.id(),
                 source.code(),
                 source.name(),
+                source.organization(),
                 source.description(),
                 source.sourceType().name(),
                 source.status().name(),
                 source.authenticationType().name(),
                 source.refreshFrequency().name(),
                 source.baseUrl().toString(),
+                source.robotsUrl() == null ? null : source.robotsUrl().toString(),
                 source.documentationUrl() == null ? null : source.documentationUrl().toString(),
+                source.samplePdfUrl() == null ? null : source.samplePdfUrl().toString(),
                 source.enabled(),
+                source.priority(),
+                source.reliabilityScore(),
                 Timestamp.from(source.createdAt()),
                 Timestamp.from(source.updatedAt()));
         return source;
@@ -126,7 +140,9 @@ public class JdbcSourceRegistryRepository implements SourceRegistryRepository {
     public List<SourceHealth> findAllHealth() {
         return jdbcTemplate.query(
                 """
-                SELECT id, source_id, status, available, latency_ms, message, checked_at, created_at
+                SELECT id, source_id, status, available, latency_ms, message, checked_at,
+                       last_http_status, last_latency_ms, robots_txt_available,
+                       robots_txt_status, pdf_capability_status, last_validated_at, created_at
                 FROM source_health
                 ORDER BY checked_at DESC
                 """,
@@ -138,6 +154,14 @@ public class JdbcSourceRegistryRepository implements SourceRegistryRepository {
                         resultSet.getLong("latency_ms"),
                         resultSet.getString("message"),
                         instant(resultSet, "checked_at"),
+                        integerNullable(resultSet, "last_http_status"),
+                        longNullable(resultSet, "last_latency_ms"),
+                        booleanNullable(resultSet, "robots_txt_available"),
+                        integerNullable(resultSet, "robots_txt_status"),
+                        enumNullable(
+                                resultSet.getString("pdf_capability_status"),
+                                CapabilityStatus.class),
+                        instantNullable(resultSet, "last_validated_at"),
                         instant(resultSet, "created_at")));
     }
 
@@ -147,7 +171,9 @@ public class JdbcSourceRegistryRepository implements SourceRegistryRepository {
                 """
                 INSERT INTO source_health (
                     id, source_id, status, available, latency_ms, message, checked_at, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    , last_http_status, last_latency_ms, robots_txt_available,
+                    robots_txt_status, pdf_capability_status, last_validated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 health.id(),
                 health.sourceId(),
@@ -156,7 +182,13 @@ public class JdbcSourceRegistryRepository implements SourceRegistryRepository {
                 health.latencyMs(),
                 health.message(),
                 Timestamp.from(health.checkedAt()),
-                Timestamp.from(health.createdAt()));
+                Timestamp.from(health.createdAt()),
+                health.lastHttpStatus(),
+                health.lastLatencyMs(),
+                health.robotsTxtAvailable(),
+                health.robotsTxtStatus(),
+                health.pdfCapabilityStatus() == null ? null : health.pdfCapabilityStatus().name(),
+                timestamp(health.lastValidatedAt()));
         return health;
     }
 
@@ -195,18 +227,23 @@ public class JdbcSourceRegistryRepository implements SourceRegistryRepository {
                 """
                 INSERT INTO source_validation_history (
                     id, source_id, validation_status, available, latency_ms, message,
-                    supported_capabilities, validated_at, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?)
+                    supported_capabilities, validated_at, created_at, http_status,
+                    robots_txt_available, robots_txt_status, pdf_capability_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?)
                 """,
                 validation.id(),
                 validation.sourceId(),
                 validation.validationStatus().name(),
-                validation.available(),
+                validation.reachable(),
                 validation.latencyMs(),
                 validation.message(),
                 capabilitiesJson(validation.supportedCapabilities()),
                 Timestamp.from(validation.validatedAt()),
-                Timestamp.from(validation.createdAt()));
+                Timestamp.from(validation.createdAt()),
+                validation.httpStatus(),
+                validation.robotsTxtAvailable(),
+                validation.robotsTxtStatus(),
+                validation.pdfCapabilityStatus().name());
         return validation;
     }
 
@@ -216,15 +253,20 @@ public class JdbcSourceRegistryRepository implements SourceRegistryRepository {
                 sourceId,
                 resultSet.getString("code"),
                 resultSet.getString("name"),
+                resultSet.getString("organization"),
                 resultSet.getString("description"),
                 SourceType.valueOf(resultSet.getString("source_type")),
                 SourceStatus.valueOf(resultSet.getString("status")),
                 AuthenticationType.valueOf(resultSet.getString("authentication_type")),
                 RefreshFrequency.valueOf(resultSet.getString("refresh_frequency")),
                 URI.create(resultSet.getString("base_url")),
+                nullableUri(resultSet.getString("robots_url")),
                 nullableUri(resultSet.getString("documentation_url")),
+                nullableUri(resultSet.getString("sample_pdf_url")),
                 findCapabilities(sourceId),
                 resultSet.getBoolean("enabled"),
+                resultSet.getInt("priority"),
+                resultSet.getBigDecimal("reliability_score"),
                 instant(resultSet, "created_at"),
                 instant(resultSet, "updated_at"));
     }
@@ -278,5 +320,24 @@ public class JdbcSourceRegistryRepository implements SourceRegistryRepository {
 
     private Timestamp timestamp(Instant value) {
         return value == null ? null : Timestamp.from(value);
+    }
+
+    private Integer integerNullable(ResultSet resultSet, String column) throws SQLException {
+        int value = resultSet.getInt(column);
+        return resultSet.wasNull() ? null : value;
+    }
+
+    private Long longNullable(ResultSet resultSet, String column) throws SQLException {
+        long value = resultSet.getLong(column);
+        return resultSet.wasNull() ? null : value;
+    }
+
+    private Boolean booleanNullable(ResultSet resultSet, String column) throws SQLException {
+        boolean value = resultSet.getBoolean(column);
+        return resultSet.wasNull() ? null : value;
+    }
+
+    private <T extends Enum<T>> T enumNullable(String value, Class<T> enumType) {
+        return value == null ? null : Enum.valueOf(enumType, value);
     }
 }

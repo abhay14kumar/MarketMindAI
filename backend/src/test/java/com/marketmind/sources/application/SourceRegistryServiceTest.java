@@ -18,9 +18,7 @@ import com.marketmind.sources.domain.RefreshFrequency;
 import com.marketmind.sources.domain.SourceRegistry;
 import com.marketmind.sources.domain.SourceStatus;
 import com.marketmind.sources.domain.SourceType;
-import com.marketmind.sources.domain.ValidationStatus;
 import com.marketmind.sources.infrastructure.InMemorySourceRegistryRepository;
-import com.marketmind.sources.infrastructure.MockSourceValidator;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,17 +36,16 @@ class SourceRegistryServiceTest {
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         service = new SourceRegistryService(
                 new InMemorySourceRegistryRepository(),
-                new MockSourceValidator(clock),
                 clock);
     }
 
     @Test
-    void shouldReturnEightDefaultSources() {
+    void shouldReturnNineDefaultSources() {
         assertThat(service.getSources(0, 20).content())
-                .hasSize(8)
+                .hasSize(9)
                 .extracting(SourceRegistry::code)
                 .contains("NSE", "BSE", "SEBI", "RBI", "AMFI",
-                        "YAHOO_FINANCE", "FINNHUB", "ALPHAVANTAGE");
+                        "YAHOO_FINANCE", "FINNHUB", "ALPHAVANTAGE", "W3C_TEST");
     }
 
     @Test
@@ -61,19 +58,25 @@ class SourceRegistryServiceTest {
     }
 
     @Test
-    void shouldRejectDuplicateCode() {
-        assertThatThrownBy(() -> service.createSource(command("nse")))
-                .isInstanceOf(ConflictException.class);
+    void shouldProvideW3cPdfValidationFixture() {
+        SourceRegistry source = service.getSources(0, 20).content().stream()
+                .filter(item -> item.code().equals("W3C_TEST"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(source.organization()).isEqualTo("World Wide Web Consortium");
+        assertThat(source.samplePdfUrl()).hasToString(
+                "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf");
+        assertThat(source.capabilities()).contains(
+                CapabilityType.HTTP_REACHABILITY,
+                CapabilityType.ROBOTS_TXT,
+                CapabilityType.PDF_DOWNLOAD);
     }
 
     @Test
-    void shouldRunMockValidationAndRecordHealth() {
-        var validation = service.validateSource(NSE_ID);
-
-        assertThat(validation.validationStatus()).isEqualTo(ValidationStatus.SUCCESS);
-        assertThat(validation.available()).isTrue();
-        assertThat(validation.latencyMs()).isPositive();
-        assertThat(service.getHealth()).anyMatch(health -> health.sourceId().equals(NSE_ID));
+    void shouldRejectDuplicateCode() {
+        assertThatThrownBy(() -> service.createSource(command("nse")))
+                .isInstanceOf(ConflictException.class);
     }
 
     @Test
@@ -88,14 +91,19 @@ class SourceRegistryServiceTest {
         return new SourceRegistryCommand(
                 code,
                 "Company Investor Relations",
+                "Example Company",
                 "Company IR source.",
                 SourceType.COMPANY_INVESTOR_RELATIONS,
                 SourceStatus.ACTIVE,
                 AuthenticationType.NONE,
                 RefreshFrequency.DAILY,
                 URI.create("https://example.com"),
+                URI.create("https://example.com/robots.txt"),
                 URI.create("https://example.com/investors"),
+                null,
                 Set.of(CapabilityType.INVESTOR_RELATIONS_DOCUMENTS),
-                true);
+                true,
+                50,
+                new java.math.BigDecimal("0.9000"));
     }
 }

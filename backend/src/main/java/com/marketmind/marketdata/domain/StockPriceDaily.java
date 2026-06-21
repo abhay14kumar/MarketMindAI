@@ -7,7 +7,7 @@ import java.util.UUID;
 public record StockPriceDaily(
         UUID id,
         UUID companyId,
-        Exchange exchange,
+        ExchangeDetails exchange,
         String symbol,
         LocalDate tradingDate,
         BigDecimal open,

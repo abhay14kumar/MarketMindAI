@@ -24,17 +24,26 @@ public class SourceRegistryMapper {
         return new SourceRegistryCommand(
                 request.code(),
                 request.name(),
+                request.organization(),
                 request.description(),
                 request.sourceType(),
                 request.status(),
                 request.authenticationType(),
                 request.refreshFrequency(),
                 URI.create(request.baseUrl()),
+                request.robotsUrl() == null || request.robotsUrl().isBlank()
+                        ? null
+                        : URI.create(request.robotsUrl()),
                 request.documentationUrl() == null || request.documentationUrl().isBlank()
                         ? null
                         : URI.create(request.documentationUrl()),
+                request.samplePdfUrl() == null || request.samplePdfUrl().isBlank()
+                        ? null
+                        : URI.create(request.samplePdfUrl()),
                 request.capabilities(),
-                request.enabled());
+                request.enabled(),
+                request.priority(),
+                request.reliabilityScore());
     }
 
     public SourceRegistryResponse toResponse(SourceRegistry source) {
@@ -42,15 +51,20 @@ public class SourceRegistryMapper {
                 source.id(),
                 source.code(),
                 source.name(),
+                source.organization(),
                 source.description(),
                 source.sourceType(),
                 source.status(),
                 source.authenticationType(),
                 source.refreshFrequency(),
                 source.baseUrl().toString(),
+                source.robotsUrl() == null ? null : source.robotsUrl().toString(),
                 source.documentationUrl() == null ? null : source.documentationUrl().toString(),
+                source.samplePdfUrl() == null ? null : source.samplePdfUrl().toString(),
                 source.capabilities(),
                 source.enabled(),
+                source.priority(),
+                source.reliabilityScore(),
                 source.createdAt(),
                 source.updatedAt());
     }
@@ -63,7 +77,13 @@ public class SourceRegistryMapper {
                 health.available(),
                 health.latencyMs(),
                 health.message(),
-                health.checkedAt());
+                health.checkedAt(),
+                health.lastHttpStatus(),
+                health.lastLatencyMs(),
+                health.robotsTxtAvailable(),
+                health.robotsTxtStatus(),
+                health.pdfCapabilityStatus(),
+                health.lastValidatedAt());
     }
 
     public SourceCapabilityResponse toResponse(SourceCapability capability) {
@@ -77,13 +97,16 @@ public class SourceRegistryMapper {
 
     public SourceValidationResponse toResponse(SourceValidationHistory validation) {
         return new SourceValidationResponse(
-                validation.id(),
                 validation.sourceId(),
-                validation.validationStatus(),
-                validation.available(),
+                validation.sourceName(),
+                validation.reachable(),
+                validation.httpStatus(),
                 validation.latencyMs(),
+                validation.robotsTxtAvailable(),
+                validation.robotsTxtStatus(),
+                validation.pdfCapabilityStatus(),
+                validation.validationStatus(),
                 validation.message(),
-                validation.supportedCapabilities(),
                 validation.validatedAt());
     }
 

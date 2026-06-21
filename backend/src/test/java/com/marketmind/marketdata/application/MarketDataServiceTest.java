@@ -11,7 +11,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
-import com.marketmind.marketdata.domain.Exchange;
+import com.marketmind.marketdata.domain.ExchangeDetails;
 import com.marketmind.marketdata.domain.MarketIndex;
 import com.marketmind.marketdata.domain.StockPriceDaily;
 
@@ -65,7 +65,7 @@ class MarketDataServiceTest {
 
     private static final class StubMarketDataProvider implements MarketDataProvider {
 
-        private final Exchange exchange = new Exchange(
+        private final ExchangeDetails exchange = new ExchangeDetails(
                 UUID.fromString("10000000-0000-0000-0000-000000000001"),
                 "NSE",
                 "National Stock Exchange of India",

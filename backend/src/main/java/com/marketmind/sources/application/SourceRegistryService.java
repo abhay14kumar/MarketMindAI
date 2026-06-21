@@ -11,7 +11,6 @@ import com.marketmind.common.exception.ResourceNotFoundException;
 import com.marketmind.sources.domain.SourceCapability;
 import com.marketmind.sources.domain.SourceHealth;
 import com.marketmind.sources.domain.SourceRegistry;
-import com.marketmind.sources.domain.SourceValidationHistory;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,15 +19,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class SourceRegistryService {
 
     private final SourceRegistryRepository repository;
-    private final SourceValidator sourceValidator;
     private final Clock clock;
 
     public SourceRegistryService(
             SourceRegistryRepository repository,
-            SourceValidator sourceValidator,
             Clock clock) {
         this.repository = repository;
-        this.sourceValidator = sourceValidator;
         this.clock = clock;
     }
 
@@ -52,15 +48,20 @@ public class SourceRegistryService {
                 UUID.randomUUID(),
                 code,
                 command.name().trim(),
+                command.organization().trim(),
                 trimToNull(command.description()),
                 command.sourceType(),
                 command.status(),
                 command.authenticationType(),
                 command.refreshFrequency(),
                 command.baseUrl(),
+                command.robotsUrl(),
                 command.documentationUrl(),
+                command.samplePdfUrl(),
                 command.capabilities(),
                 command.enabled(),
+                command.priority(),
+                command.reliabilityScore(),
                 now,
                 now));
         replaceCapabilities(source, now);
@@ -76,15 +77,20 @@ public class SourceRegistryService {
                 existing.id(),
                 code,
                 command.name().trim(),
+                command.organization().trim(),
                 trimToNull(command.description()),
                 command.sourceType(),
                 command.status(),
                 command.authenticationType(),
                 command.refreshFrequency(),
                 command.baseUrl(),
+                command.robotsUrl(),
                 command.documentationUrl(),
+                command.samplePdfUrl(),
                 command.capabilities(),
                 command.enabled(),
+                command.priority(),
+                command.reliabilityScore(),
                 existing.createdAt(),
                 clock.instant()));
         replaceCapabilities(updated, clock.instant());
@@ -95,23 +101,6 @@ public class SourceRegistryService {
     public void deleteSource(UUID id) {
         getSource(id);
         repository.deleteSource(id);
-    }
-
-    @Transactional
-    public SourceValidationHistory validateSource(UUID id) {
-        SourceRegistry source = getSource(id);
-        SourceValidationHistory validation = repository.saveValidation(
-                sourceValidator.validate(source));
-        repository.saveHealth(new SourceHealth(
-                UUID.randomUUID(),
-                source.id(),
-                validation.available() ? source.status() : com.marketmind.sources.domain.SourceStatus.DEGRADED,
-                validation.available(),
-                validation.latencyMs(),
-                validation.message(),
-                validation.validatedAt(),
-                clock.instant()));
-        return validation;
     }
 
     @Transactional(readOnly = true)

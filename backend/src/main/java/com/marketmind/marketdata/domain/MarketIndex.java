@@ -6,7 +6,7 @@ import java.util.UUID;
 
 public record MarketIndex(
         UUID id,
-        Exchange exchange,
+        ExchangeDetails exchange,
         String symbol,
         String name,
         String currency,

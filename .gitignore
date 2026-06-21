@@ -27,5 +27,6 @@ __pycache__/
 # Logs and generated manifests
 logs/
 *.log
+*.xlsx
 rendered.yaml
 backend/rendered.yaml

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.marketmind.sources.application.SourceRegistryService;
+import com.marketmind.sources.application.SourceValidationService;
 import com.marketmind.sources.dto.PageResponse;
 import com.marketmind.sources.dto.SourceCapabilityResponse;
 import com.marketmind.sources.dto.SourceHealthResponse;
@@ -41,10 +42,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class SourceRegistryController {
 
     private final SourceRegistryService service;
+    private final SourceValidationService validationService;
     private final SourceRegistryMapper mapper;
 
-    public SourceRegistryController(SourceRegistryService service, SourceRegistryMapper mapper) {
+    public SourceRegistryController(
+            SourceRegistryService service,
+            SourceValidationService validationService,
+            SourceRegistryMapper mapper) {
         this.service = service;
+        this.validationService = validationService;
         this.mapper = mapper;
     }
 
@@ -130,14 +136,24 @@ public class SourceRegistryController {
     @PostMapping("/{id}/validate")
     @Operation(
             summary = "Validate source",
-            description = "Runs deterministic mock validation without making an external call.")
-    @ApiResponse(responseCode = "200", description = "Mock validation completed")
+            description = """
+                    Checks HTTP reachability, latency, robots.txt availability, and an optional
+                    sample PDF URL. Failures are recorded as validation results and do not stop
+                    the application.
+                    """)
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Source validation completed"),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Source not found",
+                content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
     public SourceValidationResponse validateSource(@PathVariable UUID id) {
-        return mapper.toResponse(service.validateSource(id));
+        return mapper.toResponse(validationService.validateSource(id));
     }
 
     @GetMapping("/health")
-    @Operation(summary = "List source health", description = "Returns mock health observations.")
+    @Operation(summary = "List source health", description = "Returns source health observations.")
     @ApiResponse(responseCode = "200", description = "Source health returned")
     public List<SourceHealthResponse> getHealth() {
         return service.getHealth().stream().map(mapper::toResponse).toList();

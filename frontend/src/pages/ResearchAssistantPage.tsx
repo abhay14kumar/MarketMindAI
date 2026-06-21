@@ -1,51 +1,235 @@
-import { AutoAwesomeRounded, SendRounded } from '@mui/icons-material';
-import { Avatar, Box, Button, Chip, Divider, Grid, Stack, TextField, Typography } from '@mui/material';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  AutoAwesomeRounded,
+  DataObjectRounded,
+  DescriptionRounded,
+  SendRounded,
+} from '@mui/icons-material';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Divider,
+  Grid,
+  MenuItem,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { aiQueries, documentQueries } from '../api/client';
 import { PageHeader } from '../components/PageHeader';
+import { QueryState } from '../components/QueryState';
 import { SectionCard } from '../components/SectionCard';
-import { researchMessages } from '../data/mockData';
+import { formatDateTime, formatEnum } from '../utils/format';
 
 export function ResearchAssistantPage() {
+  const queryClient = useQueryClient();
+  const [question, setQuestion] = useState('');
+  const [documentId, setDocumentId] = useState('');
+  const [topK, setTopK] = useState(5);
+  const documentsQuery = useQuery({
+    queryKey: ['documents'],
+    queryFn: documentQueries.list,
+  });
+  const historyQuery = useQuery({
+    queryKey: ['ai', 'answers'],
+    queryFn: aiQueries.answers,
+  });
+  const chunksQuery = useQuery({
+    queryKey: ['ai', 'chunks', documentId],
+    queryFn: () => aiQueries.chunks(documentId),
+    enabled: Boolean(documentId),
+  });
+  const askMutation = useMutation({
+    mutationFn: aiQueries.ask,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['ai', 'answers'] });
+    },
+  });
+  const embedMutation = useMutation({
+    mutationFn: aiQueries.embedDocument,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['ai', 'chunks', documentId] });
+    },
+  });
+
+  const documents = documentsQuery.data?.data ?? [];
+  const answer = askMutation.data;
+
   return (
     <>
-      <PageHeader eyebrow="AI research assistant" title="Evidence-grounded workspace" description="Ask questions across filings, transcripts, financials, valuation, and portfolio context." />
+      <PageHeader
+        eyebrow="AI research assistant"
+        title="Evidence-grounded workspace"
+        description="Ask questions against extracted and indexed documents using local Ollama and Qdrant."
+      />
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, lg: 8 }}>
-          <SectionCard eyebrow="Research session" title="HDFC Bank vs ICICI Bank" minHeight={610}>
-            <Stack spacing={2.5}>
-              {researchMessages.map((message, index) => (
-                <Stack key={`${message.role}-${index}`} direction="row" gap={1.5} alignItems="flex-start">
-                  <Avatar sx={{ width: 32, height: 32, bgcolor: message.role === 'assistant' ? 'primary.main' : 'secondary.main', color: '#071018', fontSize: '0.7rem', fontWeight: 700 }}>
-                    {message.role === 'assistant' ? 'AI' : 'AR'}
-                  </Avatar>
-                  <Box sx={{ flex: 1, p: 2, borderRadius: 2, bgcolor: message.role === 'assistant' ? 'rgba(84,214,194,0.055)' : 'rgba(120,169,255,0.05)', border: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="overline" color={message.role === 'assistant' ? 'primary.main' : 'secondary.main'}>{message.role}</Typography>
-                    <Typography variant="body2" sx={{ mt: 0.6, lineHeight: 1.75 }}>{message.body}</Typography>
-                    {message.role === 'assistant' && <Stack direction="row" gap={1} mt={1.5} flexWrap="wrap"><Chip label="8 citations" variant="outlined" /><Chip label="Confidence 81%" variant="outlined" /><Chip label="Data through Q1 FY27" variant="outlined" /></Stack>}
-                  </Box>
-                </Stack>
-              ))}
-              <Divider />
-              <TextField multiline minRows={3} placeholder="Ask a follow-up grounded in the selected evidence…" />
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="caption" color="text.secondary">AI output is decision support, not investment advice.</Typography>
-                <Button variant="contained" endIcon={<SendRounded />}>Run analysis</Button>
+          <SectionCard eyebrow="Research session" title="Document Q&A" minHeight={620}>
+            <Stack spacing={2.2}>
+              <Stack direction={{ xs: 'column', md: 'row' }} gap={1.5}>
+                <TextField
+                  select
+                  label="Document scope"
+                  value={documentId}
+                  onChange={(event) => setDocumentId(event.target.value)}
+                  sx={{ flex: 1 }}
+                >
+                  <MenuItem value="">All indexed documents</MenuItem>
+                  {documents.map((document) => (
+                    <MenuItem key={document.id} value={document.id}>
+                      {document.title}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label="Top K"
+                  value={topK}
+                  onChange={(event) => setTopK(Number(event.target.value))}
+                  sx={{ width: 110 }}
+                >
+                  {[3, 5, 8, 10].map((value) => (
+                    <MenuItem key={value} value={value}>{value}</MenuItem>
+                  ))}
+                </TextField>
+                <Button
+                  variant="outlined"
+                  startIcon={embedMutation.isPending
+                    ? <CircularProgress size={15} color="inherit" />
+                    : <DataObjectRounded />}
+                  disabled={!documentId || embedMutation.isPending}
+                  onClick={() => embedMutation.mutate(documentId)}
+                >
+                  {embedMutation.isPending ? 'Indexing…' : 'Index document'}
+                </Button>
               </Stack>
+
+              {embedMutation.data && (
+                <Alert severity={embedMutation.data.status === 'COMPLETED' ? 'success' : 'warning'}>
+                  {formatEnum(embedMutation.data.status)}: {embedMutation.data.embeddedChunks}
+                  {' '}of {embedMutation.data.totalChunks} chunks indexed.
+                  {embedMutation.data.errorMessage && ` ${embedMutation.data.errorMessage}`}
+                </Alert>
+              )}
+              {embedMutation.error instanceof Error && (
+                <Alert severity="error">{embedMutation.error.message}</Alert>
+              )}
+
+              <TextField
+                multiline
+                minRows={4}
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                placeholder="Ask a question grounded in indexed annual reports, results, or transcripts…"
+              />
+              <Stack direction="row" justifyContent="space-between" alignItems="center" gap={2}>
+                <Typography variant="caption" color="text.secondary">
+                  AI answer is based only on indexed documents and is not financial advice.
+                </Typography>
+                <Button
+                  variant="contained"
+                  endIcon={askMutation.isPending
+                    ? <CircularProgress size={15} color="inherit" />
+                    : <SendRounded />}
+                  disabled={!question.trim() || askMutation.isPending}
+                  onClick={() => askMutation.mutate({
+                    question: question.trim(),
+                    documentId: documentId || undefined,
+                    topK,
+                  })}
+                >
+                  {askMutation.isPending ? 'Searching…' : 'Ask MarketMind'}
+                </Button>
+              </Stack>
+              {askMutation.error instanceof Error && (
+                <Alert severity="error">{askMutation.error.message}</Alert>
+              )}
+
+              {answer && (
+                <>
+                  <Divider />
+                  <Box sx={{ p: 2.25, borderRadius: 2, bgcolor: 'rgba(84,214,194,0.055)', border: '1px solid', borderColor: 'divider' }}>
+                    <Stack direction="row" justifyContent="space-between" gap={2} flexWrap="wrap">
+                      <Typography variant="overline" color="primary.main">Grounded answer</Typography>
+                      <Stack direction="row" gap={1}>
+                        <Chip label={formatEnum(answer.status)} variant="outlined" />
+                        <Chip label={`Confidence ${Math.round(answer.confidenceScore * 100)}%`} variant="outlined" />
+                      </Stack>
+                    </Stack>
+                    <Typography sx={{ mt: 1.2, whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
+                      {answer.answer}
+                    </Typography>
+                  </Box>
+                  <Stack gap={1.25}>
+                    <Typography variant="h3">Citations and retrieved evidence</Typography>
+                    {answer.citations.length === 0 ? (
+                      <Alert severity="info">No sufficiently relevant indexed context was found.</Alert>
+                    ) : answer.citations.map((citation) => (
+                      <Box key={citation.chunkId} sx={{ p: 1.7, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                        <Stack direction="row" gap={1} alignItems="center" mb={0.8}>
+                          <DescriptionRounded color="primary" fontSize="small" />
+                          <Typography variant="overline" color="text.secondary">
+                            Chunk {citation.chunkIndex} · {citation.documentId}
+                          </Typography>
+                        </Stack>
+                        <Typography variant="body2" sx={{ lineHeight: 1.7 }}>{citation.snippet}</Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                </>
+              )}
             </Stack>
           </SectionCard>
         </Grid>
+
         <Grid size={{ xs: 12, lg: 4 }}>
           <Stack spacing={2}>
-            <SectionCard eyebrow="Active agents" title="Research team">
-              <Stack spacing={1.3}>
-                {['Filing Analyst', 'Financial Analyst', 'Valuation Analyst', 'Risk Analyst', 'Portfolio Agent', 'CIO Agent'].map((agent, index) => (
-                  <Stack key={agent} direction="row" justifyContent="space-between"><Stack direction="row" gap={1} alignItems="center"><AutoAwesomeRounded color={index === 5 ? 'warning' : 'primary'} fontSize="small" /><Typography variant="body2">{agent}</Typography></Stack><Typography variant="caption" color={index < 4 ? 'primary.main' : 'text.secondary'}>{index < 4 ? 'Complete' : index === 4 ? 'Skipped' : 'Synthesizing'}</Typography></Stack>
-                ))}
-              </Stack>
+            <SectionCard eyebrow="Index status" title="Selected document">
+              {!documentId ? (
+                <Typography color="text.secondary">Select a document to inspect or build its index.</Typography>
+              ) : (
+                <QueryState
+                  loading={chunksQuery.isPending}
+                  error={chunksQuery.error instanceof Error ? chunksQuery.error : null}
+                  empty={(chunksQuery.data?.length ?? 0) === 0}
+                  onRetry={() => void chunksQuery.refetch()}
+                  emptyMessage="No chunks indexed for this document."
+                >
+                  <Stack gap={1}>
+                    <Typography>{chunksQuery.data?.length ?? 0} persisted chunks</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Collection: {chunksQuery.data?.[0]?.qdrantCollection ?? 'Not indexed'}
+                    </Typography>
+                  </Stack>
+                </QueryState>
+              )}
             </SectionCard>
-            <SectionCard eyebrow="Evidence scope" title="Selected sources">
-              <Stack spacing={1.25}>
-                {['6 quarterly results', '4 earnings transcripts', '2 annual reports', 'Live valuation snapshot'].map((source) => <Box key={source} sx={{ p: 1.25, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}><Typography variant="body2">{source}</Typography></Box>)}
-              </Stack>
+            <SectionCard eyebrow="Recent research" title="Question history">
+              <QueryState
+                loading={historyQuery.isPending}
+                error={historyQuery.error instanceof Error ? historyQuery.error : null}
+                empty={(historyQuery.data?.length ?? 0) === 0}
+                onRetry={() => void historyQuery.refetch()}
+                emptyMessage="No grounded questions have been asked yet."
+              >
+                <Stack gap={1.2}>
+                  {historyQuery.data?.slice(0, 6).map((item) => (
+                    <Box key={item.id} sx={{ p: 1.3, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                      <Stack direction="row" gap={1} alignItems="center">
+                        <AutoAwesomeRounded color="primary" fontSize="small" />
+                        <Typography variant="body2" fontWeight={650}>{item.question}</Typography>
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        {formatEnum(item.status)} · {formatDateTime(item.createdAt)}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </QueryState>
             </SectionCard>
           </Stack>
         </Grid>

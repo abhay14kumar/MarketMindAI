@@ -25,6 +25,7 @@ All recommendation-like output remains non-binding decision support.
 The repository currently includes:
 
 - Phase 1 product, architecture, AI/RAG, security, API, and testing documentation;
+- the MarketMind Engineering Knowledge System (MEKS);
 - a Java 21 Spring Boot backend foundation;
 - a Clean Architecture Company Master CRUD module;
 - PostgreSQL Flyway migrations;
@@ -53,6 +54,7 @@ The frontend and AI service directories are reserved for later implementation.
 ```text
 MarketMindAI/
 ├── architecture/     # Deployment and architecture notes
+├── academy/          # Progressive technical learning material
 ├── backend/          # Spring Boot API and domain modules
 ├── frontend/         # React + TypeScript + Vite application
 ├── ai-service/       # FastAPI RAG and multi-agent service
@@ -63,8 +65,11 @@ MarketMindAI/
 ├── helm/             # MarketMind AI Helm chart
 ├── infrastructure/   # Cloud infrastructure definitions
 ├── kubernetes/       # Kubernetes deployment documentation
+├── knowledge/        # Canonical MEKS topics, indexes, metadata, and graphs
+├── labs/             # Hands-on engineering exercises
 ├── monitoring/       # Observability configuration
 ├── prompts/          # Versioned AI prompt templates
+├── roadmaps/         # Career and time-boxed study paths
 └── scripts/          # Development and operational automation
 ```
 
@@ -163,6 +168,10 @@ See [kubernetes/README.md](kubernetes/README.md) for local-image loading, Secret
 
 ## Documentation
 
+- [MarketMind Engineering Knowledge System](knowledge/README.md)
+- [MEKS master index](knowledge/indexes/MASTER_INDEX.md)
+- [Academy](academy/README.md)
+- [Career and study roadmaps](roadmaps/README.md)
 - [Product requirements](docs/PRD.md)
 - [High-level design](docs/HLD.md)
 - [Low-level design](docs/LLD.md)

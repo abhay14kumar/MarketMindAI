@@ -1,0 +1,55 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: MEKS Topic Metadata
+type: object
+required:
+  - id
+  - title
+  - domain
+  - status
+  - current_level
+  - target_level
+  - completion_percentage
+  - confidence
+  - interview_ready
+  - production_ready
+  - needs_revision
+  - hands_on_completed
+properties:
+  id:
+    type: string
+    pattern: "^meks-[a-z0-9-]+$"
+  title:
+    type: string
+  domain:
+    type: string
+  status:
+    enum: [planned, active, validated, operational, needs-revision, retired]
+  difficulty:
+    enum: [beginner, intermediate, advanced, progressive]
+  estimated_time:
+    type: [string, "null"]
+  current_level:
+    enum: [beginner, intermediate, senior, staff, principal, architect]
+  target_level:
+    enum: [beginner, intermediate, senior, staff, principal, architect]
+  completion_percentage:
+    type: integer
+    minimum: 0
+    maximum: 100
+  confidence:
+    enum: [low, medium, high]
+  interview_ready:
+    type: boolean
+  production_ready:
+    type: boolean
+  needs_revision:
+    type: boolean
+  hands_on_completed:
+    type: boolean
+  owners:
+    type: array
+    items:
+      type: string
+  last_reviewed:
+    type: ["null", string]
+    format: date

@@ -16,14 +16,15 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marketmind.common.exception.GlobalExceptionHandler;
 import com.marketmind.sources.application.SourceRegistryService;
+import com.marketmind.sources.application.SourceValidationService;
 import com.marketmind.sources.domain.AuthenticationType;
 import com.marketmind.sources.domain.CapabilityType;
 import com.marketmind.sources.domain.RefreshFrequency;
 import com.marketmind.sources.domain.SourceStatus;
 import com.marketmind.sources.domain.SourceType;
+import com.marketmind.sources.domain.CapabilityStatus;
 import com.marketmind.sources.dto.SourceRegistryRequest;
 import com.marketmind.sources.infrastructure.InMemorySourceRegistryRepository;
-import com.marketmind.sources.infrastructure.MockSourceValidator;
 import com.marketmind.sources.mapper.SourceRegistryMapper;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -45,14 +46,24 @@ class SourceRegistryControllerTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
-        SourceRegistryService service = new SourceRegistryService(
-                new InMemorySourceRegistryRepository(),
-                new MockSourceValidator(clock),
+        InMemorySourceRegistryRepository repository = new InMemorySourceRegistryRepository();
+        SourceRegistryService service = new SourceRegistryService(repository, clock);
+        SourceValidationService validationService = new SourceValidationService(
+                repository,
+                sourceUrl -> new com.marketmind.sources.application.ReachabilityChecker
+                        .ReachabilityResult(true, 200, 125, "Reachable."),
+                sourceUrl -> new com.marketmind.sources.application.RobotsTxtChecker
+                        .RobotsTxtResult(true, 200, "robots.txt available."),
+                sourceUrl -> new com.marketmind.sources.application.PdfCapabilityChecker
+                        .PdfCapabilityResult(CapabilityStatus.UNKNOWN, "No sample PDF."),
                 clock);
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         mockMvc = MockMvcBuilders.standaloneSetup(
-                        new SourceRegistryController(service, new SourceRegistryMapper()))
+                        new SourceRegistryController(
+                                service,
+                                validationService,
+                                new SourceRegistryMapper()))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
@@ -63,8 +74,8 @@ class SourceRegistryControllerTest {
     void shouldListDefaultSources() throws Exception {
         mockMvc.perform(get("/api/v1/sources"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(8))
-                .andExpect(jsonPath("$.totalElements").value(8));
+                .andExpect(jsonPath("$.content.length()").value(9))
+                .andExpect(jsonPath("$.totalElements").value(9));
     }
 
     @Test
@@ -94,11 +105,14 @@ class SourceRegistryControllerTest {
     }
 
     @Test
-    void shouldRunMockValidation() throws Exception {
+    void shouldRunSourceValidation() throws Exception {
         mockMvc.perform(post("/api/v1/sources/{id}/validate", NSE_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.validationStatus").value("SUCCESS"))
-                .andExpect(jsonPath("$.available").value(true))
+                .andExpect(jsonPath("$.reachable").value(true))
+                .andExpect(jsonPath("$.httpStatus").value(200))
+                .andExpect(jsonPath("$.robotsTxtAvailable").value(true))
+                .andExpect(jsonPath("$.pdfCapabilityStatus").value("UNKNOWN"))
                 .andExpect(jsonPath("$.latencyMs").isNumber());
     }
 
@@ -106,7 +120,7 @@ class SourceRegistryControllerTest {
     void shouldListHealthAndCapabilities() throws Exception {
         mockMvc.perform(get("/api/v1/sources/health"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(8));
+                .andExpect(jsonPath("$.length()").value(9));
         mockMvc.perform(get("/api/v1/sources/capabilities"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").isNumber());
@@ -128,10 +142,15 @@ class SourceRegistryControllerTest {
                 null,
                 null,
                 null,
+                null,
                 "http://insecure.example.com",
                 null,
+                null,
+                null,
                 Set.of(),
-                true);
+                true,
+                0,
+                null);
 
         mockMvc.perform(post("/api/v1/sources")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -144,14 +163,19 @@ class SourceRegistryControllerTest {
         return new SourceRegistryRequest(
                 code,
                 "Company Investor Relations",
+                "Example Company",
                 "Company IR source.",
                 SourceType.COMPANY_INVESTOR_RELATIONS,
                 SourceStatus.ACTIVE,
                 AuthenticationType.NONE,
                 RefreshFrequency.DAILY,
                 "https://example.com",
+                "https://example.com/robots.txt",
                 "https://example.com/investors",
+                null,
                 Set.of(CapabilityType.INVESTOR_RELATIONS_DOCUMENTS),
-                true);
+                true,
+                50,
+                new java.math.BigDecimal("0.9000"));
     }
 }

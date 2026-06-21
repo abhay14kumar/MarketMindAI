@@ -10,7 +10,7 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 
 import com.marketmind.marketdata.application.MarketDataProvider;
-import com.marketmind.marketdata.domain.Exchange;
+import com.marketmind.marketdata.domain.ExchangeDetails;
 import com.marketmind.marketdata.domain.MarketIndex;
 import com.marketmind.marketdata.domain.StockPriceDaily;
 
@@ -35,8 +35,8 @@ public class MockMarketDataProvider implements MarketDataProvider {
 
     @Override
     public List<MarketIndex> findMarketIndexes() {
-        Exchange nse = nse();
-        Exchange bse = bse();
+        ExchangeDetails nse = nse();
+        ExchangeDetails bse = bse();
         Instant asOf = clock.instant();
         return List.of(
                 new MarketIndex(
@@ -94,16 +94,16 @@ public class MockMarketDataProvider implements MarketDataProvider {
                 providerName());
     }
 
-    private Exchange nse() {
+    private ExchangeDetails nse() {
         return exchange(NSE_ID, "NSE", "National Stock Exchange of India");
     }
 
-    private Exchange bse() {
+    private ExchangeDetails bse() {
         return exchange(BSE_ID, "BSE", "BSE Limited");
     }
 
-    private Exchange exchange(UUID id, String code, String name) {
-        return new Exchange(
+    private ExchangeDetails exchange(UUID id, String code, String name) {
+        return new ExchangeDetails(
                 id,
                 code,
                 name,

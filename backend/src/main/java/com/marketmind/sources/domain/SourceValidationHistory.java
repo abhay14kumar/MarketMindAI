@@ -7,15 +7,22 @@ import java.util.UUID;
 public record SourceValidationHistory(
         UUID id,
         UUID sourceId,
+        String sourceName,
         ValidationStatus validationStatus,
-        boolean available,
+        boolean reachable,
+        Integer httpStatus,
         long latencyMs,
+        boolean robotsTxtAvailable,
+        Integer robotsTxtStatus,
+        CapabilityStatus pdfCapabilityStatus,
         String message,
         Set<CapabilityType> supportedCapabilities,
         Instant validatedAt,
         Instant createdAt) {
 
     public SourceValidationHistory {
-        supportedCapabilities = Set.copyOf(supportedCapabilities);
+        supportedCapabilities = supportedCapabilities == null
+                ? Set.of()
+                : Set.copyOf(supportedCapabilities);
     }
 }
