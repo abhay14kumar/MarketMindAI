@@ -24,6 +24,8 @@ class DiscoveryServiceTest {
                 new DiscoveryDocumentFilter(null, null, null, null), 0, 100);
 
         assertThat(first.job().newDocuments()).isEqualTo(4);
+        assertThat(first.job().crawlerTypeUsed()).isEqualTo("TEST_STATIC");
+        assertThat(first.job().message()).contains("documents were found");
         assertThat(second.job().existingDocuments()).isEqualTo(4);
         assertThat(documents.content())
                 .allMatch(document -> document.status()

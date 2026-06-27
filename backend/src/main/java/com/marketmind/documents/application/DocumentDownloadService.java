@@ -59,6 +59,17 @@ public class DocumentDownloadService {
     }
 
     public DocumentDownloadResult download(DownloadDocumentCommand command) {
+        return download(command, true);
+    }
+
+    public DocumentDownloadResult downloadWithoutProcessing(
+            DownloadDocumentCommand command) {
+        return download(command, false);
+    }
+
+    private DocumentDownloadResult download(
+            DownloadDocumentCommand command,
+            boolean triggerAutomatedProcessing) {
         validateUrl(command.sourceUrl());
         DocumentSource source = resolveSource(command.sourceId());
         Instant startedAt = clock.instant();
@@ -139,7 +150,9 @@ public class DocumentDownloadService {
                         null));
                 DocumentDownloadResult result =
                         new DocumentDownloadResult(completedJob, completed, version);
-                triggerProcessing(completed.id());
+                if (triggerAutomatedProcessing) {
+                    triggerProcessing(completed.id());
+                }
                 return result;
             }
         } catch (ApiException exception) {

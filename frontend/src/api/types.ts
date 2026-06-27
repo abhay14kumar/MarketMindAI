@@ -54,6 +54,91 @@ export interface SourceValidation {
   validatedAt: string;
 }
 
+export interface SourceIntelligenceCatalogItem {
+  id: string;
+  code: string;
+  name: string;
+  organization: string;
+  sourceType: string;
+  status: string;
+  baseUrl: string;
+  official: boolean;
+  priority: number;
+  reliabilityScore: number;
+  trustScore: number;
+  freshnessScore: number;
+  trustTier: string;
+  connectorType: string;
+  capabilities: string[];
+  supportedFormats: string[];
+  supportedDocumentTypes: string[];
+  healthy: boolean | null;
+  latencyMs: number | null;
+  httpStatus: number | null;
+  lastValidatedAt: string | null;
+  lastCrawlAt: string | null;
+  nextCrawlAt: string | null;
+  schedulerState: string;
+  totalCrawls: number;
+  successfulCrawls: number;
+  failedCrawls: number;
+  documentsDiscovered: number;
+}
+
+export interface SourceIntelligenceMetrics {
+  totalSources: number;
+  officialSources: number;
+  healthySources: number;
+  degradedSources: number;
+  enabledConnectors: number;
+  discoveryJobs: number;
+  pipelineJobs: number;
+  documentsDiscovered: number;
+  averageTrustScore: number;
+  averageReliability: number;
+  coveragePercent: number;
+}
+
+export interface SourceCoverageRow {
+  companySymbol: string;
+  documentType: string;
+  discoveredCount: number;
+  newCount: number;
+  ingestedCount: number;
+  aiReadyCount: number;
+  coverageStatus: string;
+}
+
+export interface SourceActivity {
+  id: string;
+  sourceId: string | null;
+  activityType: string;
+  severity: string;
+  title: string;
+  message: string;
+  relatedEntityType: string | null;
+  relatedEntityId: string | null;
+  occurredAt: string;
+  createdAt: string;
+}
+
+export interface SourceConnectorDescriptor {
+  connectorType: string;
+  trustTier: string;
+  supportedFormats: string[];
+  supportedDocumentTypes: string[];
+}
+
+export interface SourceRefreshResult {
+  sourceId: string;
+  discoveryJobId: string;
+  status: string;
+  connectorType: string;
+  documentsDiscovered: number;
+  message: string;
+  recommendation: string | null;
+}
+
 export interface DocumentRecord {
   id: string;
   companyId: string | null;
@@ -93,8 +178,37 @@ export interface SchedulerJob {
   status: string;
   cronExpression: string;
   timeZone: string;
+  configuration?: Record<string, string>;
+  executionMode?: 'MOCK' | 'MANUAL' | 'REAL';
+  implementationStatus?: 'SEEDED' | 'WIRED' | 'PARTIAL' | 'NOT_IMPLEMENTED';
+  nextRunSeeded?: boolean;
+  lastRunSeeded?: boolean;
   nextRunAt: string | null;
   lastRunAt: string | null;
+  lastRunStatus?: string | null;
+  lastRunMessage?: string | null;
+  lastRunDurationMs?: number | null;
+  lastRunStartedAt?: string | null;
+  lastRunCompletedAt?: string | null;
+  createdDocumentsCount?: number;
+  pipelineJobsCreatedCount?: number;
+}
+
+export interface SchedulerRun {
+  id: string;
+  schedulerJobId: string;
+  status: string;
+  triggerType: string;
+  queuedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  durationMs: number;
+  processedItems: number;
+  resultSummary: string | null;
+  errorMessage: string | null;
+  discoveredDocumentsCount: number;
+  pipelineJobsCreatedCount: number;
+  correlationId: string;
 }
 
 export interface QueryPayload<T> {
@@ -305,10 +419,41 @@ export interface DiscoveryJob {
   totalDiscovered: number;
   newDocuments: number;
   existingDocuments: number;
+  ignoredDocuments: number;
   failedSources: number;
+  message: string | null;
+  recommendation: string | null;
+  crawlerTypeUsed: string | null;
+  sourceReachable: boolean;
+  htmlFetched: boolean;
+  linksScanned: number;
+  pdfLinksFound: number;
+  reasonWhenZeroResults: string | null;
   errorMessage: string | null;
   startedAt: string;
   completedAt: string | null;
+}
+
+export interface DiscoverySourceRun {
+  id: string;
+  sourceType: string;
+  sourceUrl: string | null;
+  status: string;
+  discoveredCount: number;
+  crawlerType: string | null;
+  httpStatus: number | null;
+  fetchedHtmlBytes: number;
+  totalLinksFound: number;
+  pdfLinksFound: number;
+  skippedLinksCount: number;
+  errorMessage: string | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+export interface DiscoveryJobDetail {
+  job: DiscoveryJob;
+  sourceRuns: DiscoverySourceRun[];
 }
 
 export interface DiscoveredDocument {
@@ -326,4 +471,51 @@ export interface DiscoveredDocument {
   seenCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AutonomousPipelineStage {
+  id: string;
+  stageName: string;
+  status: string;
+  attemptCount: number;
+  maxAttempts: number;
+  durationMs: number;
+  errorMessage: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface AutonomousPipelineEvent {
+  id: string;
+  pipelineStageId: string | null;
+  eventType: string;
+  message: string;
+  details: string | null;
+  createdAt: string;
+}
+
+export interface AutonomousPipelineJob {
+  id: string;
+  discoveredDocumentId: string | null;
+  documentId: string | null;
+  correlationId: string;
+  status: string;
+  currentStage: string | null;
+  progressPercent: number;
+  errorMessage: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  stages: AutonomousPipelineStage[];
+  events: AutonomousPipelineEvent[];
+}
+
+export interface AutonomousPipelineMetrics {
+  totalJobs: number;
+  runningJobs: number;
+  completedJobs: number;
+  failedJobs: number;
+  successRate: number;
+  averageDurationMs: number;
 }

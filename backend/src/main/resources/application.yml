@@ -43,7 +43,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       probes:
@@ -93,6 +93,11 @@ ai:
 pipeline:
   document:
     auto-process-enabled: ${DOCUMENT_PIPELINE_AUTO_PROCESS_ENABLED:true}
+  orchestration:
+    enabled: ${PIPELINE_ORCHESTRATION_ENABLED:true}
+    max-attempts: ${PIPELINE_MAX_ATTEMPTS:3}
+    initial-backoff: ${PIPELINE_INITIAL_BACKOFF:250ms}
+    summary-max-characters: ${PIPELINE_SUMMARY_MAX_CHARACTERS:12000}
 
 discovery:
   timeout: ${DISCOVERY_TIMEOUT:10s}

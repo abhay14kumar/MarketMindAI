@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AutoAwesomeRounded,
   BusinessRounded,
@@ -22,6 +22,7 @@ import {
   Avatar,
   Badge,
   Box,
+  Button,
   Divider,
   Drawer,
   IconButton,
@@ -30,6 +31,8 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Menu,
+  MenuItem,
   Stack,
   TextField,
   Toolbar,
@@ -39,6 +42,10 @@ import {
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { useNotifications } from '../notifications/NotificationProvider';
+import { formatDateTime } from '../utils/format';
+import { sourceIntelligenceQueries } from '../api/client';
 
 const drawerWidth = 248;
 
@@ -64,6 +71,47 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const {
+    notifications,
+    unreadCount,
+    notify,
+    markAllRead,
+    clearNotifications,
+  } = useNotifications();
+  const [notificationAnchor, setNotificationAnchor] = useState<HTMLElement | null>(null);
+  const knownActivityIds = useRef<Set<string> | null>(null);
+  const activityQuery = useQuery({
+    queryKey: ['source-intelligence', 'global-activity'],
+    queryFn: () => sourceIntelligenceQueries.activity(20),
+    refetchInterval: 5_000,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!activityQuery.data) return;
+    if (knownActivityIds.current === null) {
+      knownActivityIds.current = new Set(activityQuery.data.map((event) => event.id));
+      return;
+    }
+    activityQuery.data.slice().reverse().forEach((event) => {
+      if (knownActivityIds.current?.has(event.id)) return;
+      knownActivityIds.current?.add(event.id);
+      notify({
+        title: event.title,
+        message: event.message,
+        severity: event.severity.toUpperCase() === 'ERROR'
+          ? 'error'
+          : event.severity.toUpperCase() === 'WARNING'
+            ? 'warning'
+            : event.severity.toUpperCase() === 'SUCCESS' ? 'success' : 'info',
+        path: event.activityType === 'PIPELINE'
+          ? '/pipeline'
+          : event.activityType === 'DISCOVERY' || event.activityType === 'NEW_FILING'
+            ? '/discovery'
+            : '/sources',
+      });
+    });
+  }, [activityQuery.data, notify]);
 
   const currentLabel = useMemo(
     () => navItems.find((item) => item.path === location.pathname)?.label ?? 'MarketMind AI',
@@ -173,13 +221,60 @@ export function AppShell() {
               },
             }}
           />
-          <Tooltip title="Notifications">
-            <IconButton sx={{ ml: 1.2 }}>
-              <Badge variant="dot" color="error">
+          <Tooltip title="Notification center">
+            <IconButton
+              sx={{ ml: 1.2 }}
+              onClick={(event) => {
+                setNotificationAnchor(event.currentTarget);
+                markAllRead();
+              }}
+            >
+              <Badge badgeContent={unreadCount} color="error">
                 <NotificationsRounded fontSize="small" />
               </Badge>
             </IconButton>
           </Tooltip>
+          <Menu
+            anchorEl={notificationAnchor}
+            open={Boolean(notificationAnchor)}
+            onClose={() => setNotificationAnchor(null)}
+            slotProps={{ paper: { sx: { width: 390, maxHeight: 520, mt: 1 } } }}
+          >
+            <Stack direction="row" justifyContent="space-between" alignItems="center" px={2} py={1}>
+              <Typography fontWeight={700}>Recent activity</Typography>
+              <Button size="small" color="inherit" onClick={clearNotifications}>Clear</Button>
+            </Stack>
+            <Divider />
+            {notifications.length === 0 && (
+              <Box px={2} py={3}>
+                <Typography color="text.secondary">
+                  Background events will appear here with links to their related jobs.
+                </Typography>
+              </Box>
+            )}
+            {notifications.slice(0, 12).map((notification) => (
+              <MenuItem
+                key={notification.id}
+                onClick={() => {
+                  if (notification.path) navigate(notification.path);
+                  setNotificationAnchor(null);
+                }}
+                sx={{ alignItems: 'flex-start', py: 1.4, whiteSpace: 'normal' }}
+              >
+                <Box>
+                  <Typography fontWeight={650} fontSize="0.82rem">
+                    {notification.title}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {notification.message}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {formatDateTime(notification.timestamp)}
+                  </Typography>
+                </Box>
+              </MenuItem>
+            ))}
+          </Menu>
           <Avatar sx={{ width: 34, height: 34, ml: 1, bgcolor: 'secondary.main', color: '#071018', fontSize: '0.75rem', fontWeight: 700 }}>
             AR
           </Avatar>

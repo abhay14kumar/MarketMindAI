@@ -28,6 +28,20 @@ Define the purpose, vocabulary, scope, and engineering outcomes for
 **Source Registry**. Keep detailed teaching material in `academy/` and link it
 here rather than duplicating it.
 
+## Operational Visibility
+
+The registry establishes trust and reachability; discovery scans registered or
+user-supplied trusted URLs. A reachable source can still yield no documents
+when links are dynamic or protected. MarketMind surfaces HTTP status, HTML
+bytes, scanned-link counts, PDF-link counts, and recommendations. NSE currently
+uses the generic crawler and explicitly reports its known limitation while an
+NSE-specific implementation remains planned.
+
+The enterprise layer adds trust-aware connector selection, automatic format
+detection, company/document coverage, crawl metrics, and a unified activity
+timeline. Source Registry remains the governance system of record; connectors
+remain replaceable outbound adapters.
+
 ## Learning Path
 
 | Level | Expected capability |

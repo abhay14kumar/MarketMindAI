@@ -13,15 +13,23 @@ import { useNavigate } from 'react-router-dom';
 import { portfolioQueries } from '../api/client';
 import { PageHeader } from '../components/PageHeader';
 import { SectionCard } from '../components/SectionCard';
+import { useNotifications } from '../notifications/NotificationProvider';
 
 export function PortfolioImportPage() {
   const [file, setFile] = useState<File | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { notify } = useNotifications();
   const mutation = useMutation({
     mutationFn: portfolioQueries.importXlsx,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+      notify({
+        title: 'Portfolio import completed',
+        message: 'The workbook was imported and portfolio views were refreshed.',
+        severity: 'success',
+        path: '/portfolio',
+      });
     },
   });
 

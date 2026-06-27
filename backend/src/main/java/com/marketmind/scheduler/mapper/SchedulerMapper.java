@@ -26,6 +26,11 @@ public class SchedulerMapper {
     }
 
     public SchedulerJobResponse toResponse(SchedulerJob job) {
+        return toResponse(job, null);
+    }
+
+    public SchedulerJobResponse toResponse(SchedulerJob job, SchedulerRun latestRun) {
+        boolean seeded = Boolean.parseBoolean(job.configuration().getOrDefault("seeded", "false"));
         return new SchedulerJobResponse(
                 job.id(),
                 job.name(),
@@ -35,8 +40,22 @@ public class SchedulerMapper {
                 job.cronExpression(),
                 job.timeZone(),
                 job.configuration(),
+                com.marketmind.scheduler.domain.SchedulerExecutionMode.valueOf(
+                        job.configuration().getOrDefault("executionMode", "MOCK")),
+                com.marketmind.scheduler.domain.SchedulerImplementationStatus.valueOf(
+                        job.configuration().getOrDefault("implementationStatus", "NOT_IMPLEMENTED")),
+                seeded && job.nextRunAt() != null,
+                seeded && job.lastRunAt() != null,
                 job.nextRunAt(),
                 job.lastRunAt(),
+                latestRun == null ? null : latestRun.status(),
+                latestRun == null ? null : firstNonBlank(
+                        latestRun.resultSummary(), latestRun.errorMessage()),
+                latestRun == null ? null : duration(latestRun),
+                latestRun == null ? null : latestRun.startedAt(),
+                latestRun == null ? null : latestRun.completedAt(),
+                latestRun == null ? 0 : latestRun.discoveredDocumentsCount(),
+                latestRun == null ? 0 : latestRun.pipelineJobsCreatedCount(),
                 job.createdAt(),
                 job.updatedAt());
     }
@@ -50,7 +69,12 @@ public class SchedulerMapper {
                 run.queuedAt(),
                 run.startedAt(),
                 run.completedAt(),
+                duration(run),
                 run.processedItems(),
+                run.resultSummary(),
+                run.errorMessage(),
+                run.discoveredDocumentsCount(),
+                run.pipelineJobsCreatedCount(),
                 run.correlationId(),
                 run.createdAt(),
                 run.updatedAt());
@@ -72,5 +96,17 @@ public class SchedulerMapper {
                 page.size(),
                 page.totalElements(),
                 page.totalPages());
+    }
+
+    private long duration(SchedulerRun run) {
+        if (run.startedAt() == null || run.completedAt() == null) {
+            return 0;
+        }
+        return Math.max(0, java.time.Duration.between(
+                run.startedAt(), run.completedAt()).toMillis());
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return first == null || first.isBlank() ? second : first;
     }
 }

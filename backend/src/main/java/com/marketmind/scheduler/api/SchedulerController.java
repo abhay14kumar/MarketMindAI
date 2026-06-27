@@ -53,7 +53,16 @@ public class SchedulerController {
     public PageResponse<SchedulerJobResponse> getJobs(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return mapper.toJobPage(schedulerService.getJobs(page, size));
+        var jobs = schedulerService.getJobs(page, size);
+        return new PageResponse<>(
+                jobs.content().stream()
+                        .map(job -> mapper.toResponse(
+                                job, schedulerService.getLatestRun(job.id())))
+                        .toList(),
+                jobs.page(),
+                jobs.size(),
+                jobs.totalElements(),
+                jobs.totalPages());
     }
 
     @GetMapping("/jobs/{id}")
@@ -66,7 +75,8 @@ public class SchedulerController {
                 content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     })
     public SchedulerJobResponse getJob(@PathVariable UUID id) {
-        return mapper.toResponse(schedulerService.getJob(id));
+        return mapper.toResponse(
+                schedulerService.getJob(id), schedulerService.getLatestRun(id));
     }
 
     @PostMapping("/jobs")
@@ -119,9 +129,9 @@ public class SchedulerController {
     @PostMapping("/jobs/{id}/trigger")
     @Operation(
             summary = "Trigger scheduler job",
-            description = "Creates a queued mock run; no external or scheduled work is executed.")
+            description = "Runs the wired job implementation immediately and records its result.")
     @ApiResponses({
-        @ApiResponse(responseCode = "202", description = "Mock scheduler run accepted"),
+        @ApiResponse(responseCode = "202", description = "Scheduler run completed and recorded"),
         @ApiResponse(
                 responseCode = "404",
                 description = "Scheduler job not found",
@@ -137,7 +147,7 @@ public class SchedulerController {
     }
 
     @GetMapping("/runs")
-    @Operation(summary = "List scheduler runs", description = "Returns paginated mock runs.")
+    @Operation(summary = "List scheduler runs", description = "Returns paginated execution history.")
     @ApiResponse(
             responseCode = "200",
             description = "Scheduler runs returned",

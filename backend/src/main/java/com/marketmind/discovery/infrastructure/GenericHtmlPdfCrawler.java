@@ -19,9 +19,14 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component
 public class GenericHtmlPdfCrawler implements SourceCrawler {
+
+    private static final Logger log = LoggerFactory.getLogger(GenericHtmlPdfCrawler.class);
+    static final String CRAWLER_TYPE = "GENERIC_HTML_PDF";
 
     private final HttpClient httpClient;
     private final DiscoveryProperties properties;
@@ -39,7 +44,7 @@ public class GenericHtmlPdfCrawler implements SourceCrawler {
     }
 
     @Override
-    public List<CrawledDocument> crawl(CrawlRequest request) {
+    public CrawlResult crawl(CrawlRequest request) {
         validateSourceUrl(request.sourceUrl());
         HttpRequest httpRequest = HttpRequest.newBuilder(request.sourceUrl())
                 .timeout(properties.timeout())
@@ -53,6 +58,10 @@ public class GenericHtmlPdfCrawler implements SourceCrawler {
                     httpRequest,
                     HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn(
+                        "Discovery source returned non-success status sourceUrl={} httpStatus={}",
+                        response.uri(),
+                        response.statusCode());
                 throw new DiscoveryCrawlerException(
                         "Source returned HTTP " + response.statusCode() + ".");
             }
@@ -60,10 +69,20 @@ public class GenericHtmlPdfCrawler implements SourceCrawler {
                 throw new DiscoveryCrawlerException(
                         "Source HTML exceeded the configured size limit.");
             }
-            return extractPdfLinks(
+            CrawlResult result = analyzeHtml(
                     response.uri(),
                     new String(response.body(), StandardCharsets.UTF_8),
-                    request.maxDocuments());
+                    request.maxDocuments(),
+                    response.statusCode(),
+                    response.body().length);
+            log.info(
+                    "Discovery source fetched sourceUrl={} httpStatus={} fetchedHtmlBytes={} linksScanned={} pdfLinksFound={}",
+                    response.uri(),
+                    response.statusCode(),
+                    response.body().length,
+                    result.totalLinksFound(),
+                    result.pdfLinksFound());
+            return result;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new DiscoveryCrawlerException(
@@ -78,33 +97,68 @@ public class GenericHtmlPdfCrawler implements SourceCrawler {
             URI sourceUrl,
             String html,
             int maxDocuments) {
+        return analyzeHtml(sourceUrl, html, maxDocuments, 200, html.getBytes(StandardCharsets.UTF_8).length)
+                .documents();
+    }
+
+    static CrawlResult analyzeHtml(
+            URI sourceUrl,
+            String html,
+            int maxDocuments,
+            int httpStatus,
+            long fetchedHtmlBytes) {
         Document document = Jsoup.parse(html, sourceUrl.toString());
         Map<String, CrawledDocument> links = new LinkedHashMap<>();
+        int totalLinks = 0;
+        int pdfLinks = 0;
+        int skippedLinks = 0;
         for (Element anchor : document.select("a[href]")) {
+            totalLinks++;
             String absoluteUrl = anchor.absUrl("href");
             if (absoluteUrl.isBlank()) {
+                skippedLinks++;
                 continue;
             }
             URI documentUrl;
             try {
                 documentUrl = URI.create(absoluteUrl);
             } catch (IllegalArgumentException ignored) {
+                skippedLinks++;
                 continue;
             }
             if (!isPdf(documentUrl)) {
+                skippedLinks++;
                 continue;
             }
+            pdfLinks++;
             String title = anchor.text().strip();
             if (title.isBlank()) {
                 title = fileName(documentUrl);
             }
-            links.putIfAbsent(documentUrl.toString(), new CrawledDocument(
-                    documentUrl, title));
-            if (links.size() >= maxDocuments) {
-                break;
+            if (links.size() < maxDocuments) {
+                links.putIfAbsent(documentUrl.toString(), new CrawledDocument(
+                        documentUrl, title));
             }
         }
-        return List.copyOf(links.values());
+        boolean nseSource = sourceUrl.getHost() != null
+                && sourceUrl.getHost().toLowerCase(Locale.ROOT).contains("nseindia.com");
+        String message = nseSource
+                ? "NSE pages often require source-specific APIs or browser/session handling. "
+                        + "Generic PDF link extraction may return zero results."
+                : links.isEmpty()
+                        ? "The source was reached, but no direct PDF links were found in the fetched HTML."
+                        : "Direct PDF links were discovered successfully.";
+        return new CrawlResult(
+                List.copyOf(links.values()),
+                CRAWLER_TYPE,
+                true,
+                true,
+                httpStatus,
+                fetchedHtmlBytes,
+                totalLinks,
+                pdfLinks,
+                skippedLinks,
+                message);
     }
 
     private static boolean isPdf(URI uri) {

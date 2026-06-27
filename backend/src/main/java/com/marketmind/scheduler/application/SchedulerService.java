@@ -22,10 +22,15 @@ import org.springframework.scheduling.support.CronExpression;
 public class SchedulerService {
 
     private final SchedulerRepository schedulerRepository;
+    private final SchedulerJobExecutor jobExecutor;
     private final Clock clock;
 
-    public SchedulerService(SchedulerRepository schedulerRepository, Clock clock) {
+    public SchedulerService(
+            SchedulerRepository schedulerRepository,
+            SchedulerJobExecutor jobExecutor,
+            Clock clock) {
         this.schedulerRepository = schedulerRepository;
+        this.jobExecutor = jobExecutor;
         this.clock = clock;
     }
 
@@ -83,23 +88,61 @@ public class SchedulerService {
         if (job.status() != SchedulerJobStatus.ACTIVE) {
             throw new ConflictException("Only active scheduler jobs can be triggered.");
         }
-        Instant now = clock.instant();
-        return schedulerRepository.saveRun(new SchedulerRun(
+        Instant queuedAt = clock.instant();
+        SchedulerJobExecutor.ExecutionResult result;
+        Instant startedAt = clock.instant();
+        try {
+            result = jobExecutor.execute(job);
+        } catch (RuntimeException exception) {
+            result = new SchedulerJobExecutor.ExecutionResult(
+                    SchedulerRunStatus.FAILED,
+                    "Scheduler execution failed.",
+                    exception.getMessage(),
+                    0,
+                    0);
+        }
+        Instant completedAt = clock.instant();
+        SchedulerRun run = schedulerRepository.saveRun(new SchedulerRun(
                 UUID.randomUUID(),
                 job.id(),
-                SchedulerRunStatus.QUEUED,
+                result.status(),
                 "MANUAL",
-                now,
-                null,
-                null,
-                0,
+                queuedAt,
+                startedAt,
+                completedAt,
+                result.discoveredDocumentsCount(),
+                result.resultSummary(),
+                result.errorMessage(),
+                result.discoveredDocumentsCount(),
+                result.pipelineJobsCreatedCount(),
                 UUID.randomUUID().toString(),
-                now,
-                now));
+                queuedAt,
+                completedAt));
+        schedulerRepository.saveJob(new SchedulerJob(
+                job.id(),
+                job.name(),
+                job.description(),
+                job.schedulerType(),
+                job.status(),
+                job.cronExpression(),
+                job.timeZone(),
+                job.configuration(),
+                job.nextRunAt(),
+                completedAt,
+                job.createdAt(),
+                completedAt));
+        return run;
     }
 
     public PageResult<SchedulerRun> getRuns(int page, int size) {
         return page(schedulerRepository.findAllRuns(), page, size);
+    }
+
+    public SchedulerRun getLatestRun(UUID jobId) {
+        return schedulerRepository.findAllRuns().stream()
+                .filter(run -> run.schedulerJobId().equals(jobId))
+                .findFirst()
+                .orElse(null);
     }
 
     private void validateCommand(SchedulerJobCommand command) {

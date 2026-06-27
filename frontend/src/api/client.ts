@@ -20,9 +20,16 @@ import type {
   PriceSnapshot,
   QueryPayload,
   SchedulerJob,
+  SchedulerRun,
   Source,
   SourceHealth,
   SourceValidation,
+  SourceIntelligenceCatalogItem,
+  SourceIntelligenceMetrics,
+  SourceCoverageRow,
+  SourceActivity,
+  SourceConnectorDescriptor,
+  SourceRefreshResult,
   AiAnswer,
   AiAskRequest,
   DocumentChunk,
@@ -30,7 +37,10 @@ import type {
   PipelineRun,
   DiscoveryRunRequest,
   DiscoveryJob,
+  DiscoveryJobDetail,
   DiscoveredDocument,
+  AutonomousPipelineJob,
+  AutonomousPipelineMetrics,
 } from './types';
 
 const API_BASE_URL = (import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8080').replace(/\/$/, '');
@@ -107,6 +117,35 @@ export const sourceQueries = {
   ),
 };
 
+export const sourceIntelligenceQueries = {
+  catalog: () =>
+    request<SourceIntelligenceCatalogItem[]>('/api/v1/source-intelligence/catalog'),
+  source: (sourceId: string) =>
+    request<SourceIntelligenceCatalogItem>(
+      `/api/v1/source-intelligence/catalog/${sourceId}`,
+    ),
+  metrics: () =>
+    request<SourceIntelligenceMetrics>('/api/v1/source-intelligence/metrics'),
+  activity: (limit = 100) =>
+    request<SourceActivity[]>(`/api/v1/source-intelligence/activity?limit=${limit}`),
+  coverage: () =>
+    request<SourceCoverageRow[]>('/api/v1/source-intelligence/coverage'),
+  connectors: () =>
+    request<SourceConnectorDescriptor[]>('/api/v1/source-intelligence/connectors'),
+  formats: () =>
+    request<string[]>('/api/v1/source-intelligence/formats'),
+  validate: (sourceId: string) =>
+    request<SourceIntelligenceCatalogItem>(
+      `/api/v1/source-intelligence/sources/${sourceId}/validate`,
+      { method: 'POST' },
+    ),
+  refresh: (sourceId: string) =>
+    request<SourceRefreshResult>(
+      `/api/v1/source-intelligence/sources/${sourceId}/refresh`,
+      { method: 'POST' },
+    ),
+};
+
 export const documentQueries = {
   list: () => withFallback(
     async () => (await request<PageResponse<DocumentRecord>>('/api/v1/documents?size=100')).content,
@@ -122,6 +161,11 @@ export const schedulerQueries = {
   jobs: () => withFallback(
     async () => (await request<PageResponse<SchedulerJob>>('/api/v1/scheduler/jobs?size=100')).content,
     fallbackSchedulerJobs,
+  ),
+  runs: () => request<PageResponse<SchedulerRun>>('/api/v1/scheduler/runs?size=100'),
+  trigger: (jobId: string) => request<SchedulerRun>(
+    `/api/v1/scheduler/jobs/${jobId}/trigger`,
+    { method: 'POST' },
   ),
 };
 
@@ -189,6 +233,24 @@ export const pipelineQueries = {
     request<PipelineRun>(`/api/v1/pipeline/documents/${documentId}/retry`, {
       method: 'POST',
     }),
+  jobs: (page = 0, size = 100) =>
+    request<PageResponse<AutonomousPipelineJob>>(
+      `/api/v1/pipeline/jobs?page=${page}&size=${size}`,
+    ),
+  job: (jobId: string) =>
+    request<AutonomousPipelineJob>(`/api/v1/pipeline/jobs/${jobId}`),
+  start: (payload: { discoveredDocumentId?: string; documentId?: string }) =>
+    request<AutonomousPipelineJob>('/api/v1/pipeline/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  retryJob: (jobId: string) =>
+    request<AutonomousPipelineJob>(`/api/v1/pipeline/jobs/${jobId}/retry`, {
+      method: 'POST',
+    }),
+  metrics: () =>
+    request<AutonomousPipelineMetrics>('/api/v1/pipeline/metrics'),
 };
 
 export const discoveryQueries = {
@@ -202,6 +264,8 @@ export const discoveryQueries = {
     request<PageResponse<DiscoveryJob>>(
       `/api/v1/discovery/jobs?page=${page}&size=${size}`,
     ),
+  job: (jobId: string) =>
+    request<DiscoveryJobDetail>(`/api/v1/discovery/jobs/${jobId}`),
   documents: (page = 0, size = 100) =>
     request<PageResponse<DiscoveredDocument>>(
       `/api/v1/discovery/documents?page=${page}&size=${size}`,

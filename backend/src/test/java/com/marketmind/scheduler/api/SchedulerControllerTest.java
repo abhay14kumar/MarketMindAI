@@ -15,6 +15,8 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marketmind.common.exception.GlobalExceptionHandler;
 import com.marketmind.scheduler.application.SchedulerService;
+import com.marketmind.scheduler.application.SchedulerJobExecutor;
+import com.marketmind.scheduler.domain.SchedulerRunStatus;
 import com.marketmind.scheduler.domain.SchedulerJobStatus;
 import com.marketmind.scheduler.domain.SchedulerType;
 import com.marketmind.scheduler.dto.SchedulerJobRequest;
@@ -41,6 +43,13 @@ class SchedulerControllerTest {
     void setUp() {
         SchedulerService service = new SchedulerService(
                 new MockSchedulerRepository(),
+                job -> new SchedulerJobExecutor.ExecutionResult(
+                        SchedulerRunStatus.COMPLETED,
+                        "Generic HTML crawler could not discover documents from NSE because "
+                                + "the page may be dynamic or protected. NSE-specific crawler is planned.",
+                        null,
+                        0,
+                        0),
                 Clock.fixed(NOW, ZoneOffset.UTC));
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -98,11 +107,14 @@ class SchedulerControllerTest {
     }
 
     @Test
-    void shouldTriggerActiveJobAsMockRun() throws Exception {
+    void shouldTriggerActiveJobWithMeaningfulMessage() throws Exception {
         mockMvc.perform(post("/api/v1/scheduler/jobs/{id}/trigger", ACTIVE_JOB_ID))
                 .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.status").value("QUEUED"))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.triggerType").value("MANUAL"))
+                .andExpect(jsonPath("$.resultSummary").value(
+                        "Generic HTML crawler could not discover documents from NSE because "
+                                + "the page may be dynamic or protected. NSE-specific crawler is planned."))
                 .andExpect(jsonPath("$.schedulerJobId").value(ACTIVE_JOB_ID.toString()));
     }
 

@@ -35,9 +35,20 @@ public class TestStaticCrawler implements SourceCrawler {
     }
 
     @Override
-    public List<CrawledDocument> crawl(CrawlRequest request) {
-        return DOCUMENTS.stream()
+    public CrawlResult crawl(CrawlRequest request) {
+        List<CrawledDocument> documents = DOCUMENTS.stream()
                 .limit(request.maxDocuments())
                 .toList();
+        return new CrawlResult(
+                documents,
+                "TEST_STATIC",
+                true,
+                false,
+                null,
+                0,
+                documents.size(),
+                documents.size(),
+                0,
+                "Test discovery completed using the deterministic public PDF corpus.");
     }
 }

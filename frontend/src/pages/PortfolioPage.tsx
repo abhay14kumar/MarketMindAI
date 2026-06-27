@@ -39,6 +39,7 @@ import { QueryState } from '../components/QueryState';
 import { SectionCard } from '../components/SectionCard';
 import { AllocationChart } from '../components/charts/AllocationChart';
 import { formatCurrency, formatDateTime, formatEnum, formatNumber } from '../utils/format';
+import { useNotifications } from '../notifications/NotificationProvider';
 
 const initialManualPrice: ManualPriceRequest = {
   symbol: '',
@@ -52,6 +53,7 @@ const PRICE_REFRESH_INTERVAL_MS = 30_000;
 export function PortfolioPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { notify } = useNotifications();
   const [manualPrice, setManualPrice] = useState(initialManualPrice);
   const [message, setMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null);
   const summaryQuery = useQuery({
@@ -88,6 +90,12 @@ export function PortfolioPage() {
     onSuccess: async (job) => {
       await refreshPortfolio();
       setMessage({ severity: 'success', text: `Updated ${job.updatedInstruments} mock prices.` });
+      notify({
+        title: 'Price refresh completed',
+        message: `Updated ${job.updatedInstruments} mock prices.`,
+        severity: 'success',
+        path: '/portfolio',
+      });
     },
     onError: (error) => setMessage({
       severity: 'error',
@@ -102,6 +110,12 @@ export function PortfolioPage() {
       setMessage({
         severity: job.status === 'FAILED' ? 'error' : 'success',
         text: `${job.provider ?? 'Public provider'} updated ${job.updatedInstruments} prices; ${job.failedInstruments} failed.`,
+      });
+      notify({
+        title: job.status === 'FAILED' ? 'Price refresh failed' : 'Price refresh completed',
+        message: `${job.provider ?? 'Public provider'} updated ${job.updatedInstruments} prices; ${job.failedInstruments} failed.`,
+        severity: job.status === 'FAILED' ? 'error' : 'success',
+        path: '/portfolio',
       });
     },
     onError: (error) => setMessage({

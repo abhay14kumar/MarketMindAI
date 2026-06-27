@@ -14,30 +14,35 @@ import com.marketmind.discovery.domain.DiscoveredDocumentType;
 import com.marketmind.discovery.domain.DiscoveryJob;
 import com.marketmind.discovery.domain.DiscoveryJobStatus;
 import com.marketmind.discovery.domain.DiscoverySourceRun;
-import com.marketmind.discovery.infrastructure.SourceCrawlerFactory;
+import com.marketmind.sourceintelligence.application.SourceConnector;
+import com.marketmind.sourceintelligence.application.SourceConnectorFactory;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 @Service
 public class DiscoveryService {
 
     private final DiscoveryRepository repository;
-    private final SourceCrawlerFactory crawlerFactory;
+    private final SourceConnectorFactory connectorFactory;
     private final DiscoveryDeduplicationService deduplicationService;
     private final DiscoveryClassificationService classificationService;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public DiscoveryService(
             DiscoveryRepository repository,
-            SourceCrawlerFactory crawlerFactory,
+            SourceConnectorFactory connectorFactory,
             DiscoveryDeduplicationService deduplicationService,
             DiscoveryClassificationService classificationService,
+            ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.repository = repository;
-        this.crawlerFactory = crawlerFactory;
+        this.connectorFactory = connectorFactory;
         this.deduplicationService = deduplicationService;
         this.classificationService = classificationService;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -54,6 +59,15 @@ public class DiscoveryService {
                 0,
                 0,
                 0,
+                0,
+                "Discovery started.",
+                null,
+                null,
+                false,
+                false,
+                0,
+                0,
+                null,
                 null,
                 startedAt,
                 null,
@@ -67,26 +81,36 @@ public class DiscoveryService {
                         DiscoveryJobStatus.STARTED,
                         0,
                         null,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        null,
                         startedAt,
                         null,
                         startedAt));
 
         try {
-            List<SourceCrawler.CrawledDocument> candidates =
-                    crawlerFactory.getCrawler(command.sourceType()).crawl(
-                            new SourceCrawler.CrawlRequest(
-                                    command.sourceUrl(),
-                                    normalizeSymbol(command.companySymbol()),
-                                    command.maxDocuments()));
+            SourceConnector.ConnectorRequest connectorRequest =
+                    new SourceConnector.ConnectorRequest(
+                            command.sourceType(),
+                            command.sourceUrl(),
+                            normalizeSymbol(command.companySymbol()),
+                            command.maxDocuments());
+            SourceConnector connector = connectorFactory.select(connectorRequest);
+            SourceConnector.ConnectorResult crawlResult = connector.discover(connectorRequest);
+            List<SourceConnector.ConnectorDocument> candidates = crawlResult.documents();
             int newDocuments = 0;
             int existingDocuments = 0;
+            int ignoredDocuments = 0;
             List<String> errors = new ArrayList<>();
-            for (SourceCrawler.CrawledDocument candidate : candidates) {
+            for (SourceConnector.ConnectorDocument candidate : candidates) {
                 try {
-                    if (persistCandidate(command, candidate)) {
-                        existingDocuments++;
-                    } else {
-                        newDocuments++;
+                    switch (persistCandidate(command, candidate)) {
+                        case NEW -> newDocuments++;
+                        case EXISTING -> existingDocuments++;
+                        case IGNORED -> ignoredDocuments++;
                     }
                 } catch (RuntimeException exception) {
                     errors.add(safeMessage(exception));
@@ -97,6 +121,28 @@ public class DiscoveryService {
                     ? DiscoveryJobStatus.COMPLETED
                     : DiscoveryJobStatus.PARTIAL;
             Instant completedAt = clock.instant();
+            String zeroReason = candidates.isEmpty()
+                    ? "No direct PDF links were found in the fetched HTML. The page may be "
+                            + "dynamic, protected, or require a source-specific crawler."
+                    : null;
+            boolean nseGeneric = command.sourceUrl() != null
+                    && command.sourceUrl().getHost() != null
+                    && command.sourceUrl().getHost().toLowerCase(Locale.ROOT)
+                            .contains("nseindia.com")
+                    && crawlResult.connectorType()
+                            == com.marketmind.sourceintelligence.domain.SourceConnectorType.NSE;
+            String message = candidates.isEmpty()
+                    ? "Discovery completed but no documents were found."
+                    : "Discovery completed and documents were found.";
+            if (nseGeneric) {
+                message = "NSE pages often require source-specific APIs or browser/session "
+                        + "handling. Generic PDF link extraction may return zero results.";
+            }
+            String recommendation = candidates.isEmpty()
+                    ? nseGeneric
+                            ? "Try TEST_SOURCE for validation. An NSE-specific crawler is planned."
+                            : "Try TEST_SOURCE for validation or use a page that exposes direct PDF links."
+                    : "Review discovered documents and start ingestion for the documents you trust.";
             sourceRun = repository.saveSourceRun(new DiscoverySourceRun(
                     sourceRun.id(),
                     sourceRun.discoveryJobId(),
@@ -104,6 +150,12 @@ public class DiscoveryService {
                     sourceRun.sourceUrl(),
                     status,
                     candidates.size(),
+                    crawlResult.connectorType().name(),
+                    crawlResult.httpStatus(),
+                    crawlResult.fetchedBytes(),
+                    crawlResult.linksScanned(),
+                    crawlResult.documentLinksFound(),
+                    crawlResult.skippedLinks(),
                     summarize(errors),
                     sourceRun.startedAt(),
                     completedAt,
@@ -116,7 +168,16 @@ public class DiscoveryService {
                     candidates.size(),
                     newDocuments,
                     existingDocuments,
+                    ignoredDocuments,
                     0,
+                    message,
+                    recommendation,
+                    crawlResult.connectorType().name(),
+                    crawlResult.sourceReachable(),
+                    crawlResult.contentFetched(),
+                    crawlResult.linksScanned(),
+                    crawlResult.documentLinksFound(),
+                    zeroReason,
                     summarize(errors),
                     job.startedAt(),
                     completedAt,
@@ -131,6 +192,12 @@ public class DiscoveryService {
                     sourceRun.sourceUrl(),
                     DiscoveryJobStatus.FAILED,
                     0,
+                    null,
+                    null,
+                    0,
+                    0,
+                    0,
+                    0,
                     error,
                     sourceRun.startedAt(),
                     completedAt,
@@ -143,7 +210,16 @@ public class DiscoveryService {
                     0,
                     0,
                     0,
+                    0,
                     1,
+                    "Discovery failed before the source could be processed.",
+                    "Validate the source URL and retry. Use TEST_SOURCE to verify the discovery system.",
+                    null,
+                    false,
+                    false,
+                    0,
+                    0,
+                    null,
                     error,
                     job.startedAt(),
                     completedAt,
@@ -192,14 +268,17 @@ public class DiscoveryService {
         return updateStatus(id, DiscoveredDocumentStatus.EXISTING);
     }
 
-    private boolean persistCandidate(
+    private CandidateOutcome persistCandidate(
             DiscoveryRunCommand command,
-            SourceCrawler.CrawledDocument candidate) {
+            SourceConnector.ConnectorDocument candidate) {
         String normalizedUrl = deduplicationService.normalize(candidate.documentUrl());
         Instant now = clock.instant();
         var existing = repository.findByNormalizedUrl(normalizedUrl);
         if (existing.isPresent()) {
             DiscoveredDocument current = existing.orElseThrow();
+            DiscoveredDocumentStatus status = current.status() == DiscoveredDocumentStatus.IGNORED
+                    ? DiscoveredDocumentStatus.IGNORED
+                    : DiscoveredDocumentStatus.EXISTING;
             repository.saveDocument(new DiscoveredDocument(
                     current.id(),
                     command.sourceType(),
@@ -211,17 +290,19 @@ public class DiscoveryService {
                             current.companySymbol()),
                     classificationService.classify(
                             candidate.title(), candidate.documentUrl()),
-                    DiscoveredDocumentStatus.EXISTING,
+                    status,
                     current.normalizedUrl(),
                     current.firstDiscoveredAt(),
                     now,
                     current.seenCount() + 1,
                     current.createdAt(),
                     now));
-            return true;
+            return status == DiscoveredDocumentStatus.IGNORED
+                    ? CandidateOutcome.IGNORED
+                    : CandidateOutcome.EXISTING;
         }
 
-        repository.saveDocument(new DiscoveredDocument(
+        DiscoveredDocument created = repository.saveDocument(new DiscoveredDocument(
                 UUID.randomUUID(),
                 command.sourceType(),
                 command.sourceUrl(),
@@ -237,7 +318,8 @@ public class DiscoveryService {
                 1,
                 now,
                 now));
-        return false;
+        eventPublisher.publishEvent(new DiscoveredDocumentCreatedEvent(created.id()));
+        return CandidateOutcome.NEW;
     }
 
     private DiscoveredDocument updateStatus(
@@ -284,7 +366,7 @@ public class DiscoveryService {
         }
     }
 
-    private String title(SourceCrawler.CrawledDocument candidate) {
+    private String title(SourceConnector.ConnectorDocument candidate) {
         String value = candidate.title() == null || candidate.title().isBlank()
                 ? candidate.documentUrl().toString()
                 : candidate.title().strip();
@@ -314,5 +396,11 @@ public class DiscoveryService {
 
     private String truncate(String value) {
         return value.length() <= 2000 ? value : value.substring(0, 2000);
+    }
+
+    private enum CandidateOutcome {
+        NEW,
+        EXISTING,
+        IGNORED
     }
 }

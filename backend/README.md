@@ -2,6 +2,11 @@
 
 Spring Boot foundation for the MarketMind AI public backend API.
 
+Enterprise source operations are available under
+`/api/v1/source-intelligence`. The trust-aware connector platform supports
+NSE, BSE, SEBI, RBI, company IR, RSS, REST, and test sources while preserving
+existing APIs. See `docs/SOURCE_INTELLIGENCE_PLATFORM.md`.
+
 ## Technology
 
 - Java 21
@@ -27,8 +32,9 @@ The backend currently includes:
 - manual and deterministic mock price snapshots for portfolio valuation;
 - global problem-details exception handling and health endpoints.
 
-NSE/BSE/SEBI-specific adapters, parsing, AI processing, embeddings, and authentication
-remain out of scope.
+Source-specific browser/session automation and authenticated provider APIs
+remain out of scope; current official connectors use safe HTTP discovery with
+explicit diagnostics.
 
 ## Prerequisites
 
@@ -547,8 +553,43 @@ export DISCOVERY_USER_AGENT='Mozilla/5.0 MarketMindAI-Discovery/1.0'
 
 Use `POST /api/v1/discovery/run` with `TEST_SOURCE` for deterministic local
 testing or `COMPANY_IR` with a public `sourceUrl` for generic HTML discovery.
-NSE, BSE, SEBI, and RBI currently use the same generic crawler; source-specific
-scrapers are intentionally deferred.
+NSE, BSE, SEBI, and RBI now have distinct connector identities and trust-aware
+selection while reusing safe HTTP extraction internally. Source-specific
+browser/session automation remains intentionally deferred.
+
+## Autonomous Pipeline Orchestration
+
+The production pipeline entry point coordinates existing discovery, download,
+PDF extraction, chunking, Ollama embedding, Qdrant indexing, AI summarization,
+and final `AI_READY` services. New discovery records automatically create a
+pipeline job after the discovery transaction commits. Existing manual document
+downloads enter orchestration at text extraction.
+
+Each job has a correlation ID, durable stages and events, structured stage logs,
+Micrometer counters/timers, and up to three attempts per stage with exponential
+backoff.
+
+Configuration:
+
+```bash
+export PIPELINE_ORCHESTRATION_ENABLED=true
+export PIPELINE_MAX_ATTEMPTS=3
+export PIPELINE_INITIAL_BACKOFF=250ms
+export PIPELINE_SUMMARY_MAX_CHARACTERS=12000
+```
+
+APIs:
+
+- `POST /api/v1/pipeline/start`
+- `POST /api/v1/pipeline/jobs/{id}/retry`
+- `GET /api/v1/pipeline/jobs`
+- `GET /api/v1/pipeline/jobs/{id}`
+- `GET /api/v1/pipeline/jobs/{id}/events`
+- `GET /api/v1/pipeline/metrics`
+
+Micrometer metrics are available through Actuator, including the Prometheus
+endpoint. Existing `/api/v1/pipeline/runs` and document-pipeline endpoints are
+retained for compatibility.
 
 ## Package Structure
 

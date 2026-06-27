@@ -28,6 +28,17 @@ Define the purpose, vocabulary, scope, and engineering outcomes for
 **Scheduler**. Keep detailed teaching material in `academy/` and link it
 here rather than duplicating it.
 
+## Execution Semantics
+
+Every job reports an execution mode (`MOCK`, `MANUAL`, or `REAL`) and an
+implementation status (`SEEDED`, `WIRED`, `PARTIAL`, or `NOT_IMPLEMENTED`).
+Seeded dates are labelled rather than presented as live scheduling evidence.
+
+Run history records status, start/end time, duration, result summary, errors,
+discovered-document count, and downstream pipeline-job count. The NSE discovery
+job is manually executable but partial: it uses generic HTML extraction and
+returns a clear warning when the dynamic/protected page exposes no direct PDFs.
+
 ## Learning Path
 
 | Level | Expected capability |

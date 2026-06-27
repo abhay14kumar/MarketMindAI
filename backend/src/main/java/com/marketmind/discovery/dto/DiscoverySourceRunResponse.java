@@ -9,6 +9,12 @@ public record DiscoverySourceRunResponse(
         String sourceUrl,
         String status,
         int discoveredCount,
+        String crawlerType,
+        Integer httpStatus,
+        long fetchedHtmlBytes,
+        int totalLinksFound,
+        int pdfLinksFound,
+        int skippedLinksCount,
         String errorMessage,
         Instant startedAt,
         Instant completedAt) {

@@ -38,7 +38,15 @@ class SchedulerServiceTest {
     @BeforeEach
     void setUp() {
         repository = new InMemorySchedulerRepository();
-        service = new SchedulerService(repository, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new SchedulerService(
+                repository,
+                job -> new SchedulerJobExecutor.ExecutionResult(
+                        SchedulerRunStatus.COMPLETED,
+                        "Discovery completed but no documents were found.",
+                        null,
+                        0,
+                        0),
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -78,13 +86,14 @@ class SchedulerServiceTest {
     }
 
     @Test
-    void shouldTriggerActiveJobAsQueuedMockRun() {
+    void shouldTriggerActiveJobAndReturnMeaningfulResult() {
         SchedulerRun run = service.triggerJob(ACTIVE_JOB_ID);
 
         assertThat(run.schedulerJobId()).isEqualTo(ACTIVE_JOB_ID);
-        assertThat(run.status()).isEqualTo(SchedulerRunStatus.QUEUED);
+        assertThat(run.status()).isEqualTo(SchedulerRunStatus.COMPLETED);
         assertThat(run.triggerType()).isEqualTo("MANUAL");
         assertThat(run.queuedAt()).isEqualTo(NOW);
+        assertThat(run.resultSummary()).contains("no documents");
     }
 
     @Test

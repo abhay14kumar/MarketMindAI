@@ -16,7 +16,12 @@ public record SchedulerRunResponse(
         Instant queuedAt,
         Instant startedAt,
         Instant completedAt,
+        long durationMs,
         long processedItems,
+        String resultSummary,
+        String errorMessage,
+        long discoveredDocumentsCount,
+        long pipelineJobsCreatedCount,
         String correlationId,
         Instant createdAt,
         Instant updatedAt) {

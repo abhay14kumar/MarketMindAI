@@ -28,6 +28,15 @@ Define the purpose, vocabulary, scope, and engineering outcomes for
 **Downloader**. Keep detailed teaching material in `academy/` and link it
 here rather than duplicating it.
 
+## Discovery Versus Ingestion
+
+Discovery stores metadata for candidate document URLs and never downloads
+content. Ingestion begins only when a user or wired orchestrator starts the
+pipeline. The downloader is therefore the first content-changing boundary,
+followed by extraction, chunking, embedding, indexing, summary, and AI-ready
+stages. The UI links discovered documents to related pipeline jobs so this
+handoff remains visible.
+
 ## Learning Path
 
 | Level | Expected capability |

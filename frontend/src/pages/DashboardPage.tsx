@@ -13,7 +13,9 @@ import {
   LinearProgress,
   Stack,
   Typography,
+  Alert,
 } from '@mui/material';
+import { useQuery } from '@tanstack/react-query';
 import { MetricCard } from '../components/MetricCard';
 import { PageHeader } from '../components/PageHeader';
 import { SectionCard } from '../components/SectionCard';
@@ -21,8 +23,37 @@ import { StatusChip } from '../components/StatusChip';
 import { PerformanceChart } from '../components/charts/PerformanceChart';
 import { SectorChart } from '../components/charts/SectorChart';
 import { filings, portfolioMetrics, watchlist } from '../data/mockData';
+import { discoveryQueries, documentQueries, pipelineQueries, sourceQueries } from '../api/client';
+import { formatDateTime, formatEnum } from '../utils/format';
 
 export function DashboardPage() {
+  const discovery = useQuery({
+    queryKey: ['discovery-jobs'],
+    queryFn: () => discoveryQueries.jobs(0, 5),
+    refetchInterval: 5_000,
+  });
+  const pipelines = useQuery({
+    queryKey: ['pipeline-jobs'],
+    queryFn: () => pipelineQueries.jobs(0, 5),
+    refetchInterval: 5_000,
+  });
+  const documents = useQuery({
+    queryKey: ['documents'],
+    queryFn: documentQueries.list,
+    refetchInterval: 15_000,
+  });
+  const health = useQuery({
+    queryKey: ['sources', 'health'],
+    queryFn: sourceQueries.health,
+    refetchInterval: 30_000,
+  });
+  const discoveryJobs = discovery.data?.content ?? [];
+  const pipelineJobs = pipelines.data?.content ?? [];
+  const recentDocuments = documents.data?.data.slice(0, 5) ?? [];
+  const healthySources = health.data?.data.filter((item) => item.available).length ?? 0;
+  const nseWarning = discoveryJobs.find((job) =>
+    job.sourceType === 'NSE' && job.status === 'COMPLETED' && job.totalDiscovered === 0);
+
   return (
     <>
       <PageHeader
@@ -31,6 +62,12 @@ export function DashboardPage() {
         description="Your portfolio is outperforming NIFTY 50 by 13.2 percentage points over the trailing twelve months."
         action={<Button variant="contained" startIcon={<AutoAwesomeRounded />}>Run portfolio review</Button>}
       />
+
+      {nseWarning && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          NSE discovery ran but found no documents. NSE-specific crawler required.
+        </Alert>
+      )}
 
       <Grid container spacing={2}>
         {portfolioMetrics.map((metric) => (
@@ -52,6 +89,80 @@ export function DashboardPage() {
         <Grid size={{ xs: 12, lg: 4 }}>
           <SectionCard eyebrow="Exposure" title="Sector allocation">
             <SectorChart />
+          </SectionCard>
+        </Grid>
+
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <SectionCard eyebrow="Background work" title="Latest discovery jobs" minHeight={300}>
+            <Stack divider={<Divider flexItem />}>
+              {discoveryJobs.length === 0 && (
+                <Typography color="text.secondary">
+                  No discovery jobs yet. Run Test Discovery to validate source scanning.
+                </Typography>
+              )}
+              {discoveryJobs.map((job) => (
+                <Stack key={job.discoveryJobId} py={1.2} gap={0.5}>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography fontWeight={650}>{formatEnum(job.sourceType)}</Typography>
+                    <StatusChip label={job.totalDiscovered === 0 ? 'NO_RESULTS' : job.status} />
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary">{job.message}</Typography>
+                </Stack>
+              ))}
+            </Stack>
+          </SectionCard>
+        </Grid>
+
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <SectionCard eyebrow="Background work" title="Latest pipeline jobs" minHeight={300}>
+            <Stack divider={<Divider flexItem />}>
+              {pipelineJobs.length === 0 && (
+                <Typography color="text.secondary">
+                  No pipeline jobs yet. Start ingestion from a discovered document.
+                </Typography>
+              )}
+              {pipelineJobs.map((job) => (
+                <Stack key={job.id} py={1.2} gap={0.5}>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography fontWeight={650}>{job.id.slice(0, 8)}</Typography>
+                    <StatusChip label={job.status} />
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary">
+                    {formatEnum(job.currentStage)} · {job.progressPercent}% · {formatDateTime(job.updatedAt)}
+                  </Typography>
+                </Stack>
+              ))}
+            </Stack>
+          </SectionCard>
+        </Grid>
+
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <SectionCard eyebrow="Freshness & health" title="System activity" minHeight={300}>
+            <Stack gap={1.5}>
+              <Stack direction="row" justifyContent="space-between">
+                <Typography>Reachable sources</Typography>
+                <Typography fontWeight={700}>{healthySources}/{health.data?.data.length ?? 0}</Typography>
+              </Stack>
+              <Stack direction="row" justifyContent="space-between">
+                <Typography>Documents processed</Typography>
+                <Typography fontWeight={700}>{recentDocuments.length}</Typography>
+              </Stack>
+              <Stack direction="row" justifyContent="space-between">
+                <Typography>AI-ready documents</Typography>
+                <Typography fontWeight={700}>
+                  {pipelineJobs.filter((job) => job.status === 'COMPLETED').length}
+                </Typography>
+              </Stack>
+              <Divider />
+              {recentDocuments.slice(0, 3).map((document) => (
+                <Box key={document.id}>
+                  <Typography fontWeight={650} fontSize="0.82rem">{document.title}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {formatEnum(document.status)} · {formatDateTime(document.createdAt)}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
           </SectionCard>
         </Grid>
 

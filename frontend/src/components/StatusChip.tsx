@@ -11,15 +11,20 @@ export function StatusChip({ label }: StatusChipProps) {
       || upper === 'LOW'
       || upper === 'COMPLETED'
       || upper === 'AI READY'
-    ? 'primary'
+      || upper === 'WIRED'
+    ? 'success'
+    : upper === 'RUNNING' || upper === 'STARTED' || upper === 'QUEUED'
+      ? 'info'
     : upper.includes('CRITICAL')
         || upper.includes('REVIEW')
         || upper === 'FAILED'
       ? 'error'
       : upper.includes('HIGH')
           || upper.includes('PROCESS')
-          || upper === 'STARTED'
           || upper === 'PARTIAL'
+          || upper === 'NO_RESULTS'
+          || upper === 'NO RESULTS'
+          || upper === 'SEEDED'
         ? 'warning'
         : 'default';
 

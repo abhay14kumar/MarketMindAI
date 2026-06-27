@@ -4,12 +4,14 @@ import java.util.UUID;
 
 import com.marketmind.documents.application.DocumentProcessingTrigger;
 import com.marketmind.pipeline.application.DocumentPipelineProperties;
-import com.marketmind.pipeline.application.DocumentPipelineService;
+import com.marketmind.pipeline.application.PipelineOrchestrator;
+import com.marketmind.pipeline.application.PipelineStartCommand;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.context.annotation.Lazy;
 
 @Component
 public class AutomatedDocumentProcessingTrigger implements DocumentProcessingTrigger {
@@ -17,13 +19,13 @@ public class AutomatedDocumentProcessingTrigger implements DocumentProcessingTri
     private static final Logger LOGGER =
             LoggerFactory.getLogger(AutomatedDocumentProcessingTrigger.class);
 
-    private final DocumentPipelineService pipelineService;
+    private final PipelineOrchestrator orchestrator;
     private final DocumentPipelineProperties properties;
 
     public AutomatedDocumentProcessingTrigger(
-            DocumentPipelineService pipelineService,
+            @Lazy PipelineOrchestrator orchestrator,
             DocumentPipelineProperties properties) {
-        this.pipelineService = pipelineService;
+        this.orchestrator = orchestrator;
         this.properties = properties;
     }
 
@@ -35,7 +37,7 @@ public class AutomatedDocumentProcessingTrigger implements DocumentProcessingTri
             return;
         }
         try {
-            pipelineService.processDownloaded(documentId);
+            orchestrator.start(new PipelineStartCommand(null, documentId, null));
         } catch (RuntimeException exception) {
             LOGGER.error(
                     "Automated processing failed unexpectedly for document {}",

@@ -9,7 +9,7 @@ public interface SourceCrawler {
 
     DiscoverySourceType sourceType();
 
-    List<CrawledDocument> crawl(CrawlRequest request);
+    CrawlResult crawl(CrawlRequest request);
 
     record CrawlRequest(
             URI sourceUrl,
@@ -20,5 +20,22 @@ public interface SourceCrawler {
     record CrawledDocument(
             URI documentUrl,
             String title) {
+    }
+
+    record CrawlResult(
+            List<CrawledDocument> documents,
+            String crawlerType,
+            boolean sourceReachable,
+            boolean htmlFetched,
+            Integer httpStatus,
+            long fetchedHtmlBytes,
+            int totalLinksFound,
+            int pdfLinksFound,
+            int skippedLinksCount,
+            String message) {
+
+        public CrawlResult {
+            documents = List.copyOf(documents);
+        }
     }
 }
